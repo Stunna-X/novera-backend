@@ -1,13 +1,63 @@
 from datetime import datetime, timedelta
-from jose import jwt
+from jose import JWTError, jwt
 
-from backend.app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from backend.app.core.config import settings
+
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 
-def create_access_token(data: dict):
-    to_encode = data.copy()
+def create_access_token(data: dict) -> str:
+    payload = data.copy()
 
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+    expire = datetime.utcnow() + timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
 
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    payload.update(
+        {
+            "exp": expire,
+            "type": "access",
+        }
+    )
+
+    return jwt.encode(
+        payload,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+
+
+def create_refresh_token(data: dict) -> str:
+    payload = data.copy()
+
+    expire = datetime.utcnow() + timedelta(
+        days=REFRESH_TOKEN_EXPIRE_DAYS
+    )
+
+    payload.update(
+        {
+            "exp": expire,
+            "type": "refresh",
+        }
+    )
+
+    return jwt.encode(
+        payload,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+
+
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+
+        return payload
+
+    except JWTError:
+        return None
