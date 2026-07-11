@@ -7,11 +7,13 @@ updating, and deactivating organizations.
 
 from __future__ import annotations
 
-import uuid
-
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import (
+    OrganizationContext,
+    require_permission,
+)
 from app.auth.dependencies import get_current_user
 from app.database.session import get_db
 from app.models.organization import Organization
@@ -82,20 +84,18 @@ def list_organizations(
     summary="Get organization",
 )
 def get_organization(
-    organization_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    context: OrganizationContext = Depends(
+        require_permission("organizations.read")
+    ),
 ) -> Organization:
     """
     Return one organization that the current user belongs to.
+
+    Requires:
+    - organizations.read
     """
 
-    service = OrganizationService(db)
-
-    return service.get_organization(
-        organization_id=organization_id,
-        current_user=current_user,
-    )
+    return context.organization
 
 
 @router.patch(
@@ -104,23 +104,24 @@ def get_organization(
     summary="Update organization",
 )
 def update_organization(
-    organization_id: uuid.UUID,
     payload: UpdateOrganizationSchema,
-    current_user: User = Depends(get_current_user),
+    context: OrganizationContext = Depends(
+        require_permission("organizations.update")
+    ),
     db: Session = Depends(get_db),
 ) -> Organization:
     """
     Update organization details.
 
-    Only users with Owner or Admin access may perform this action.
+    Requires:
+    - organizations.update
     """
 
     service = OrganizationService(db)
 
     return service.update_organization(
-        organization_id=organization_id,
+        organization=context.organization,
         payload=payload,
-        current_user=current_user,
     )
 
 
@@ -130,19 +131,20 @@ def update_organization(
     summary="Deactivate organization",
 )
 def deactivate_organization(
-    organization_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    context: OrganizationContext = Depends(
+        require_permission("organizations.deactivate")
+    ),
     db: Session = Depends(get_db),
 ) -> Organization:
     """
     Deactivate an organization.
 
-    Only users with Owner or Admin access may perform this action.
+    Requires:
+    - organizations.deactivate
     """
 
     service = OrganizationService(db)
 
     return service.deactivate_organization(
-        organization_id=organization_id,
-        current_user=current_user,
+        organization=context.organization,
     )
