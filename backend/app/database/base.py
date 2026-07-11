@@ -2,9 +2,9 @@
 Database foundation for Novera.
 
 Contains:
-- SQLAlchemy Declarative Base
+- SQLAlchemy declarative base
 - Naming conventions for Alembic
-- UUID primary key mixin
+- UUID primary-key mixin
 - Timestamp mixin
 - Abstract BaseModel inherited by every model
 """
@@ -12,7 +12,7 @@ Contains:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, MetaData
 from sqlalchemy.dialects.postgresql import UUID
@@ -31,7 +31,9 @@ NAMING_CONVENTION = {
 }
 
 
-metadata = MetaData(naming_convention=NAMING_CONVENTION)
+metadata = MetaData(
+    naming_convention=NAMING_CONVENTION,
+)
 
 
 class Base(DeclarativeBase):
@@ -44,36 +46,41 @@ class Base(DeclarativeBase):
 
 class UUIDMixin:
     """
-    Provides a UUID primary key for every model.
+    Provides a UUID primary key.
     """
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+        nullable=False,
     )
 
 
 class TimestampMixin:
     """
-    Automatically manages created_at and updated_at timestamps.
+    Automatically manages creation and update timestamps.
     """
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 
 
-class BaseModel(Base, UUIDMixin, TimestampMixin):
+class BaseModel(
+    UUIDMixin,
+    TimestampMixin,
+    Base,
+):
     """
     Abstract model inherited by every database model.
     """

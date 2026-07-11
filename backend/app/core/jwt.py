@@ -1,46 +1,39 @@
-from datetime import datetime, timedelta
+"""
+JWT token utilities.
+
+Creates and validates access and refresh tokens.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
 from jose import JWTError, jwt
 
-from backend.app.core.config import settings
-
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+from app.core.config import settings
 
 
-def create_access_token(data: dict) -> str:
-    payload = data.copy()
+def create_access_token(
+    data: dict[str, Any],
+) -> str:
+    """
+    Create a signed access token.
+    """
 
-    expire = datetime.utcnow() + timedelta(
-        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    now = datetime.now(UTC)
 
-    payload.update(
-        {
-            "exp": expire,
-            "type": "access",
-        }
-    )
-
-    return jwt.encode(
-        payload,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM,
-    )
-
-
-def create_refresh_token(data: dict) -> str:
-    payload = data.copy()
-
-    expire = datetime.utcnow() + timedelta(
-        days=REFRESH_TOKEN_EXPIRE_DAYS
-    )
-
-    payload.update(
-        {
-            "exp": expire,
-            "type": "refresh",
-        }
-    )
+    payload = {
+        **data,
+        "iat": now,
+        "exp": now
+        + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        ),
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
+        "type": "access",
+    }
 
     return jwt.encode(
         payload,
@@ -49,15 +42,89 @@ def create_refresh_token(data: dict) -> str:
     )
 
 
-def verify_token(token: str):
+def create_refresh_token(
+    data: dict[str, Any],
+) -> str:
+    """
+    Create a signed refresh token.
+    """
+
+    now = datetime.now(UTC)
+
+    payload = {
+        **data,
+        "iat": now,
+        "exp": now
+        + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS,
+        ),
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
+        "type": "refresh",
+    }
+
+    return jwt.encode(
+        payload,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+
+
+def verify_token(
+    token: str,
+    expected_type: str | None = None,
+) -> dict[str, Any] | None:
+    """
+    Decode and validate a JWT.
+
+    Optionally validates the expected token type.
+    """
+
     try:
         payload = jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
+            audience=settings.JWT_AUDIENCE,
+            issuer=settings.JWT_ISSUER,
         )
+
+        subject = payload.get("sub")
+        token_type = payload.get("type")
+
+        if not subject or not token_type:
+            return None
+
+        if expected_type is not None and token_type != expected_type:
+            return None
 
         return payload
 
     except JWTError:
         return None
+
+
+def verify_access_token(
+    token: str,
+) -> dict[str, Any] | None:
+    """
+    Validate an access token.
+    """
+
+    return verify_token(
+        token,
+        expected_type="access",
+    )
+
+
+def verify_refresh_token(
+    token: str,
+) -> dict[str, Any] | None:
+    """
+    Validate a refresh token.
+    """
+
+    return verify_token(
+        token,
+        expected_type="refresh",
+    )

@@ -59,7 +59,10 @@ class User(BaseModel):
     )
 
     status: Mapped[UserStatus] = mapped_column(
-        Enum(UserStatus, name="user_status_enum"),
+        Enum(
+            UserStatus,
+            name="user_status_enum",
+        ),
         default=UserStatus.ACTIVE,
         nullable=False,
     )
@@ -81,9 +84,16 @@ class User(BaseModel):
         cascade="all, delete-orphan",
     )
 
+    refresh_tokens = relationship(
+        "RefreshToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
     @property
     def full_name(self) -> str:
         """
-        Returns the user's full name.
+        Return the user's full name.
         """
+
         return f"{self.first_name} {self.last_name}"

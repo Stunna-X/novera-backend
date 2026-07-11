@@ -8,15 +8,21 @@ Users receive roles through memberships.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import BaseModel
 
+if TYPE_CHECKING:
+    from app.models.membership import Membership
+    from app.models.permission import Permission
+
 
 class Role(BaseModel):
     """
-    Represents a role within an organization.
+    Represents a platform role assignable through memberships.
     """
 
     __tablename__ = "roles"
@@ -24,6 +30,7 @@ class Role(BaseModel):
     name: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
+        unique=True,
     )
 
     description: Mapped[str | None] = mapped_column(
@@ -37,14 +44,14 @@ class Role(BaseModel):
         nullable=False,
     )
 
-    permissions = relationship(
+    permissions: Mapped[list["Permission"]] = relationship(
         "Permission",
         secondary="role_permissions",
         back_populates="roles",
         lazy="selectin",
     )
 
-    memberships = relationship(
+    memberships: Mapped[list["Membership"]] = relationship(
         "Membership",
         back_populates="role",
     )
