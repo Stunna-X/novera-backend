@@ -5,6 +5,7 @@ Importing models here ensures that all database tables are
 registered in SQLAlchemy metadata and detected by Alembic.
 """
 
+from app.models.asset import Asset
 from app.models.customer import Customer
 from app.models.customer_site import CustomerSite
 from app.models.membership import Membership
@@ -18,6 +19,7 @@ from app.models.workforce_profile import WorkforceProfile
 
 
 __all__ = [
+    "Asset",
     "Customer",
     "CustomerSite",
     "Membership",
