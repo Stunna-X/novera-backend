@@ -15,6 +15,11 @@ from app.models.refresh_token import RefreshToken
 from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.user import User
+from app.models.work_order import (
+    WorkOrder,
+    WorkOrderAssetAssignment,
+    WorkOrderWorkforceAssignment,
+)
 from app.models.workforce_profile import WorkforceProfile
 
 
@@ -29,5 +34,8 @@ __all__ = [
     "Role",
     "RolePermission",
     "User",
+    "WorkOrder",
+    "WorkOrderAssetAssignment",
+    "WorkOrderWorkforceAssignment",
     "WorkforceProfile",
 ]
