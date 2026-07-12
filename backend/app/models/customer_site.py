@@ -1,21 +1,24 @@
 """
-Customer model.
+Customer site model.
 
-Stores organization-scoped customer records used by
-field operations, jobs, projects, invoices, and reporting.
+Stores physical service and operational locations belonging
+to organization customers.
 """
 
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
     ForeignKey,
     Index,
+    Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
@@ -28,28 +31,33 @@ from app.database.base import BaseModel
 
 
 if TYPE_CHECKING:
-    from app.models.customer_site import CustomerSite
+    from app.models.customer import Customer
     from app.models.organization import Organization
 
 
-class Customer(BaseModel):
+class CustomerSite(BaseModel):
     """
-    Customer belonging to one Novera organization.
+    Physical operational location belonging to a customer.
 
-    Customers are isolated by organization so that records
-    cannot be shared across separate company workspaces.
+    Customer sites are scoped to an organization and customer
+    to preserve tenant isolation.
     """
 
-    __tablename__ = "customers"
+    __tablename__ = "customer_sites"
 
     __table_args__ = (
-        Index(
-            "ix_customers_organization_name",
+        UniqueConstraint(
             "organization_id",
+            "site_code",
+            name="uq_customer_sites_organization_site_code",
+        ),
+        Index(
+            "ix_customer_sites_customer_name",
+            "customer_id",
             "name",
         ),
         Index(
-            "ix_customers_organization_active",
+            "ix_customer_sites_organization_active",
             "organization_id",
             "is_active",
         ),
@@ -65,15 +73,29 @@ class Customer(BaseModel):
         index=True,
     )
 
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "customers.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
     name: Mapped[str] = mapped_column(
         String(160),
         nullable=False,
     )
 
-    customer_type: Mapped[str] = mapped_column(
-        String(30),
-        nullable=False,
-        default="business",
+    site_code: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    site_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
     )
 
     contact_name: Mapped[str | None] = mapped_column(
@@ -84,7 +106,6 @@ class Customer(BaseModel):
     email: Mapped[str | None] = mapped_column(
         String(320),
         nullable=True,
-        index=True,
     )
 
     phone: Mapped[str | None] = mapped_column(
@@ -92,14 +113,9 @@ class Customer(BaseModel):
         nullable=True,
     )
 
-    alternate_phone: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-    )
-
-    address_line_1: Mapped[str | None] = mapped_column(
+    address_line_1: Mapped[str] = mapped_column(
         String(255),
-        nullable=True,
+        nullable=False,
     )
 
     address_line_2: Mapped[str | None] = mapped_column(
@@ -127,6 +143,27 @@ class Customer(BaseModel):
         nullable=True,
     )
 
+    latitude: Mapped[Decimal | None] = mapped_column(
+        Numeric(
+            precision=9,
+            scale=6,
+        ),
+        nullable=True,
+    )
+
+    longitude: Mapped[Decimal | None] = mapped_column(
+        Numeric(
+            precision=10,
+            scale=6,
+        ),
+        nullable=True,
+    )
+
+    access_instructions: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     notes: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
@@ -139,27 +176,24 @@ class Customer(BaseModel):
         index=True,
     )
 
-    organization: Mapped["Organization"] = relationship(
-        "Organization",
-        lazy="joined",
+    customer: Mapped["Customer"] = relationship(
+        "Customer",
+        back_populates="sites",
     )
 
-    sites: Mapped[list["CustomerSite"]] = relationship(
-        "CustomerSite",
-        back_populates="customer",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        lazy="selectin",
+    organization: Mapped["Organization"] = relationship(
+        "Organization",
     )
 
     def __repr__(self) -> str:
         """
-        Return a developer-friendly customer representation.
+        Return a developer-friendly customer-site representation.
         """
 
         return (
-            f"<Customer "
+            f"<CustomerSite "
             f"id={self.id} "
             f"name={self.name!r} "
+            f"customer_id={self.customer_id} "
             f"organization_id={self.organization_id}>"
         )

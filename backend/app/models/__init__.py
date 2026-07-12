@@ -6,6 +6,7 @@ registered in SQLAlchemy metadata and detected by Alembic.
 """
 
 from app.models.customer import Customer
+from app.models.customer_site import CustomerSite
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.permission import Permission
@@ -17,6 +18,7 @@ from app.models.user import User
 
 __all__ = [
     "Customer",
+    "CustomerSite",
     "Membership",
     "Organization",
     "Permission",
