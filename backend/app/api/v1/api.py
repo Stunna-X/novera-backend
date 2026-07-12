@@ -10,6 +10,7 @@ from app.api.v1.auth.router import router as auth_router
 from app.api.v1.health.router import router as health_router
 from app.api.v1.memberships.router import router as membership_router
 from app.api.v1.organizations.router import router as organization_router
+from app.api.v1.roles.router import router as role_router
 
 
 api_router = APIRouter()
@@ -48,6 +49,15 @@ api_router.include_router(
 
 api_router.include_router(
     membership_router,
+)
+
+
+# -----------------------------------------------------------------------------
+# Organization Access and Roles
+# -----------------------------------------------------------------------------
+
+api_router.include_router(
+    role_router,
 )
 
 
