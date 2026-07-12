@@ -1,0 +1,12 @@
+alembic==1.18.4
+email-validator==2.3.0
+fastapi==0.136.1
+passlib[argon2]==1.7.4
+psycopg2-binary==2.9.12
+pydantic==2.13.4
+pydantic-settings==2.14.2
+python-dotenv==1.2.2
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.32
+SQLAlchemy==2.0.49
+uvicorn[standard]==0.47.0
