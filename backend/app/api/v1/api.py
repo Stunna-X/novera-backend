@@ -7,6 +7,7 @@ Every Version 1 endpoint is registered here.
 from fastapi import APIRouter
 
 from app.api.v1.auth.router import router as auth_router
+from app.api.v1.customers.router import router as customer_router
 from app.api.v1.health.router import router as health_router
 from app.api.v1.memberships.router import router as membership_router
 from app.api.v1.organizations.router import router as organization_router
@@ -44,15 +45,6 @@ api_router.include_router(
 
 
 # -----------------------------------------------------------------------------
-# Organization Memberships
-# -----------------------------------------------------------------------------
-
-api_router.include_router(
-    membership_router,
-)
-
-
-# -----------------------------------------------------------------------------
 # Organization Access and Roles
 # -----------------------------------------------------------------------------
 
@@ -62,10 +54,27 @@ api_router.include_router(
 
 
 # -----------------------------------------------------------------------------
+# Organization Memberships
+# -----------------------------------------------------------------------------
+
+api_router.include_router(
+    membership_router,
+)
+
+
+# -----------------------------------------------------------------------------
+# Customers
+# -----------------------------------------------------------------------------
+
+api_router.include_router(
+    customer_router,
+)
+
+
+# -----------------------------------------------------------------------------
 # Future routers
 # -----------------------------------------------------------------------------
 
-# from app.api.v1.customers.router import router as customer_router
 # from app.api.v1.work_orders.router import router as work_order_router
 # from app.api.v1.assets.router import router as asset_router
 # from app.api.v1.projects.router import router as project_router
@@ -73,7 +82,6 @@ api_router.include_router(
 # from app.api.v1.dashboard.router import router as dashboard_router
 # from app.api.v1.reports.router import router as report_router
 
-# api_router.include_router(customer_router)
 # api_router.include_router(work_order_router)
 # api_router.include_router(asset_router)
 # api_router.include_router(project_router)
