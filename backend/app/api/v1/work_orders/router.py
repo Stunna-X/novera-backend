@@ -2,7 +2,7 @@
 Work-order routes.
 
 Provides organization-scoped endpoints for work orders,
-status transitions, workforce assignments, and assets.
+activities, status transitions, workforce, and assets.
 """
 
 from __future__ import annotations
@@ -32,6 +32,13 @@ from app.schemas.work_order import (
     WorkOrderResponse,
     WorkOrderStatus,
 )
+from app.schemas.work_order_activity import (
+    WorkOrderActivityListResponse,
+    WorkOrderActivityType,
+)
+from app.services.work_order_activity_service import (
+    WorkOrderActivityService,
+)
 from app.services.work_order_service import WorkOrderService
 
 
@@ -54,11 +61,16 @@ def create_work_order(
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderResponse:
+    """
+    Create an organization work order.
+    """
+
     service = WorkOrderService(db)
 
     return service.create_work_order(
         organization_id=context.organization.id,
         payload=payload,
+        actor_user_id=context.membership.user_id,
     )
 
 
@@ -103,6 +115,10 @@ def list_work_orders(
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderListResponse:
+    """
+    List organization work orders.
+    """
+
     service = WorkOrderService(db)
 
     return service.list_work_orders(
@@ -133,12 +149,61 @@ def get_work_order(
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderResponse:
+    """
+    Return one work order.
+    """
+
     service = WorkOrderService(db)
 
     return service.get_work_order(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
         include_inactive=include_inactive,
+    )
+
+
+@router.get(
+    "/{work_order_id}/activities",
+    response_model=WorkOrderActivityListResponse,
+    summary="List work-order activities",
+)
+def list_work_order_activities(
+    work_order_id: uuid.UUID,
+    skip: int = Query(
+        default=0,
+        ge=0,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=200,
+    ),
+    activity_type: WorkOrderActivityType | None = Query(
+        default=None,
+    ),
+    include_inactive_work_order: bool = Query(
+        default=False,
+    ),
+    context: OrganizationContext = Depends(
+        require_permission("work_orders.read")
+    ),
+    db: Session = Depends(get_db),
+) -> WorkOrderActivityListResponse:
+    """
+    Return the work-order operational timeline.
+    """
+
+    service = WorkOrderActivityService(db)
+
+    return service.list_activities(
+        organization_id=context.organization.id,
+        work_order_id=work_order_id,
+        skip=skip,
+        limit=limit,
+        activity_type=activity_type,
+        include_inactive_work_order=(
+            include_inactive_work_order
+        ),
     )
 
 
@@ -155,12 +220,17 @@ def update_work_order(
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderResponse:
+    """
+    Update work-order details.
+    """
+
     service = WorkOrderService(db)
 
     return service.update_work_order(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
         payload=payload,
+        actor_user_id=context.membership.user_id,
     )
 
 
@@ -177,12 +247,17 @@ def change_work_order_status(
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderResponse:
+    """
+    Change work-order operational status.
+    """
+
     service = WorkOrderService(db)
 
     return service.change_status(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
         payload=payload,
+        actor_user_id=context.membership.user_id,
     )
 
 
@@ -198,11 +273,16 @@ def deactivate_work_order(
     ),
     db: Session = Depends(get_db),
 ) -> Response:
+    """
+    Soft-delete a work order.
+    """
+
     service = WorkOrderService(db)
 
     service.deactivate_work_order(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
+        actor_user_id=context.membership.user_id,
     )
 
     return Response(
@@ -222,11 +302,16 @@ def reactivate_work_order(
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderResponse:
+    """
+    Reactivate a work order.
+    """
+
     service = WorkOrderService(db)
 
     return service.reactivate_work_order(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
+        actor_user_id=context.membership.user_id,
     )
 
 
@@ -243,12 +328,17 @@ def assign_workforce_member(
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderResponse:
+    """
+    Assign a workforce member to a work order.
+    """
+
     service = WorkOrderService(db)
 
     return service.assign_workforce(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
         workforce_profile_id=workforce_profile_id,
+        actor_user_id=context.membership.user_id,
     )
 
 
@@ -265,12 +355,17 @@ def remove_workforce_member(
     ),
     db: Session = Depends(get_db),
 ) -> Response:
+    """
+    Remove a workforce member from a work order.
+    """
+
     service = WorkOrderService(db)
 
     service.remove_workforce(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
         workforce_profile_id=workforce_profile_id,
+        actor_user_id=context.membership.user_id,
     )
 
     return Response(
@@ -291,12 +386,17 @@ def assign_asset(
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderResponse:
+    """
+    Assign an operational asset to a work order.
+    """
+
     service = WorkOrderService(db)
 
     return service.assign_asset(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
         asset_id=asset_id,
+        actor_user_id=context.membership.user_id,
     )
 
 
@@ -313,12 +413,17 @@ def remove_asset(
     ),
     db: Session = Depends(get_db),
 ) -> Response:
+    """
+    Remove an operational asset from a work order.
+    """
+
     service = WorkOrderService(db)
 
     service.remove_asset(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
         asset_id=asset_id,
+        actor_user_id=context.membership.user_id,
     )
 
     return Response(

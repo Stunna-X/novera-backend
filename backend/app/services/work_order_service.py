@@ -1,14 +1,15 @@
 """
 Work-order service.
 
-Contains validation, status transitions, and assignment
-logic for field-service work orders.
+Contains validation, status transitions, assignments, and
+activity timeline recording for field-service work orders.
 """
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -22,8 +23,12 @@ from app.models.work_order import (
     WorkOrderAssetAssignment,
     WorkOrderWorkforceAssignment,
 )
+from app.models.work_order_activity import WorkOrderActivity
 from app.models.workforce_profile import WorkforceProfile
 from app.repositories.work_order import WorkOrderRepository
+from app.repositories.work_order_activity import (
+    WorkOrderActivityRepository,
+)
 from app.schemas.work_order import (
     ChangeWorkOrderStatusSchema,
     CreateWorkOrderSchema,
@@ -76,11 +81,16 @@ class WorkOrderService:
     ):
         self.db = db
         self.work_orders = WorkOrderRepository(db)
+        self.activities = WorkOrderActivityRepository(db)
 
     @staticmethod
     def _build_response(
         work_order: WorkOrder,
     ) -> WorkOrderResponse:
+        """
+        Convert a work-order model into an API response.
+        """
+
         return WorkOrderResponse(
             id=work_order.id,
             organization_id=work_order.organization_id,
@@ -125,6 +135,39 @@ class WorkOrderService:
             updated_at=work_order.updated_at,
         )
 
+    def _record_activity(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        work_order_id: uuid.UUID,
+        actor_user_id: uuid.UUID,
+        activity_type: str,
+        summary: str,
+        from_status: str | None = None,
+        to_status: str | None = None,
+        note: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> WorkOrderActivity:
+        """
+        Record one immutable activity timeline entry.
+        """
+
+        activity = WorkOrderActivity(
+            organization_id=organization_id,
+            work_order_id=work_order_id,
+            actor_user_id=actor_user_id,
+            activity_type=activity_type,
+            summary=summary,
+            from_status=from_status,
+            to_status=to_status,
+            note=note,
+            details=details or {},
+        )
+
+        return self.activities.create_activity(
+            activity
+        )
+
     def _get_work_order_or_404(
         self,
         organization_id: uuid.UUID,
@@ -132,6 +175,10 @@ class WorkOrderService:
         *,
         include_inactive: bool = False,
     ) -> WorkOrder:
+        """
+        Retrieve one work order or raise 404.
+        """
+
         work_order = (
             self.work_orders.get_for_organization(
                 organization_id=organization_id,
@@ -153,6 +200,10 @@ class WorkOrderService:
         organization_id: uuid.UUID,
         customer_id: uuid.UUID,
     ) -> Customer:
+        """
+        Retrieve an active organization customer.
+        """
+
         customer = (
             self.db.query(Customer)
             .filter(
@@ -178,6 +229,10 @@ class WorkOrderService:
         customer_id: uuid.UUID,
         customer_site_id: uuid.UUID | None,
     ) -> CustomerSite | None:
+        """
+        Validate that a site belongs to the selected customer.
+        """
+
         if customer_site_id is None:
             return None
 
@@ -209,6 +264,10 @@ class WorkOrderService:
         self,
         organization_id: uuid.UUID,
     ) -> str:
+        """
+        Generate an organization-safe work-order number.
+        """
+
         date_part = datetime.now(
             timezone.utc
         ).strftime("%Y%m%d")
@@ -243,6 +302,10 @@ class WorkOrderService:
         *,
         exclude_work_order_id: uuid.UUID | None = None,
     ) -> None:
+        """
+        Ensure a work-order number is unique.
+        """
+
         if self.work_orders.number_exists(
             organization_id=organization_id,
             work_order_number=work_order_number,
@@ -261,6 +324,10 @@ class WorkOrderService:
         scheduled_start: datetime | None,
         scheduled_end: datetime | None,
     ) -> None:
+        """
+        Validate start and end schedule values.
+        """
+
         if (
             scheduled_start is not None
             and scheduled_end is not None
@@ -280,7 +347,13 @@ class WorkOrderService:
         self,
         organization_id: uuid.UUID,
         payload: CreateWorkOrderSchema,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> WorkOrderResponse:
+        """
+        Create a work order and its first activity.
+        """
+
         self._get_customer_or_404(
             organization_id=organization_id,
             customer_id=payload.customer_id,
@@ -319,6 +392,28 @@ class WorkOrderService:
                 self.work_orders.create_work_order(
                     work_order
                 )
+            )
+
+            self._record_activity(
+                organization_id=organization_id,
+                work_order_id=created.id,
+                actor_user_id=actor_user_id,
+                activity_type="created",
+                summary=(
+                    f"Work order "
+                    f"{created.work_order_number} created."
+                ),
+                to_status=created.status,
+                details={
+                    "customer_id": str(
+                        created.customer_id
+                    ),
+                    "customer_site_id": (
+                        str(created.customer_site_id)
+                        if created.customer_site_id
+                        else None
+                    ),
+                },
             )
 
             loaded = (
@@ -368,6 +463,10 @@ class WorkOrderService:
         customer_site_id: uuid.UUID | None = None,
         include_inactive: bool = False,
     ) -> WorkOrderListResponse:
+        """
+        List organization work orders.
+        """
+
         work_orders = (
             self.work_orders.list_for_organization(
                 organization_id=organization_id,
@@ -411,6 +510,10 @@ class WorkOrderService:
         *,
         include_inactive: bool = False,
     ) -> WorkOrderResponse:
+        """
+        Return one work order.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -426,7 +529,13 @@ class WorkOrderService:
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
         payload: UpdateWorkOrderSchema,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> WorkOrderResponse:
+        """
+        Update work-order details and record the change.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -447,6 +556,11 @@ class WorkOrderService:
         update_data = payload.model_dump(
             exclude_unset=True
         )
+
+        if not update_data:
+            return self._build_response(
+                work_order
+            )
 
         required_fields = {
             "customer_id",
@@ -515,6 +629,10 @@ class WorkOrderService:
                 exclude_work_order_id=work_order.id,
             )
 
+        changed_fields = sorted(
+            update_data.keys()
+        )
+
         for field_name, field_value in update_data.items():
             setattr(
                 work_order,
@@ -529,8 +647,24 @@ class WorkOrderService:
                 )
             )
 
+            self._record_activity(
+                organization_id=organization_id,
+                work_order_id=updated.id,
+                actor_user_id=actor_user_id,
+                activity_type="updated",
+                summary="Work-order details updated.",
+                details={
+                    "changed_fields": changed_fields,
+                },
+            )
+
+            refreshed = self._get_work_order_or_404(
+                organization_id=organization_id,
+                work_order_id=updated.id,
+            )
+
             return self._build_response(
-                updated
+                refreshed
             )
 
         except IntegrityError as exc:
@@ -549,7 +683,13 @@ class WorkOrderService:
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
         payload: ChangeWorkOrderStatusSchema,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> WorkOrderResponse:
+        """
+        Change work-order status and record the transition.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -560,9 +700,11 @@ class WorkOrderService:
                 work_order
             )
 
+        previous_status = work_order.status
+
         allowed_statuses = (
             ALLOWED_STATUS_TRANSITIONS.get(
-                work_order.status,
+                previous_status,
                 set(),
             )
         )
@@ -572,7 +714,7 @@ class WorkOrderService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
                     f"Cannot change work-order status "
-                    f"from {work_order.status} "
+                    f"from {previous_status} "
                     f"to {payload.status}."
                 ),
             )
@@ -631,15 +773,40 @@ class WorkOrderService:
             )
         )
 
+        self._record_activity(
+            organization_id=organization_id,
+            work_order_id=updated.id,
+            actor_user_id=actor_user_id,
+            activity_type="status_changed",
+            summary=(
+                f"Status changed from "
+                f"{previous_status} to {payload.status}."
+            ),
+            from_status=previous_status,
+            to_status=payload.status,
+            note=payload.note,
+        )
+
+        refreshed = self._get_work_order_or_404(
+            organization_id=organization_id,
+            work_order_id=updated.id,
+        )
+
         return self._build_response(
-            updated
+            refreshed
         )
 
     def deactivate_work_order(
         self,
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> None:
+        """
+        Deactivate a work order and record the action.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -662,11 +829,25 @@ class WorkOrderService:
             work_order
         )
 
+        self._record_activity(
+            organization_id=organization_id,
+            work_order_id=work_order.id,
+            actor_user_id=actor_user_id,
+            activity_type="deactivated",
+            summary="Work order deactivated.",
+        )
+
     def reactivate_work_order(
         self,
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> WorkOrderResponse:
+        """
+        Reactivate a work order and record the action.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -680,8 +861,22 @@ class WorkOrderService:
                 )
             )
 
+            self._record_activity(
+                organization_id=organization_id,
+                work_order_id=work_order.id,
+                actor_user_id=actor_user_id,
+                activity_type="reactivated",
+                summary="Work order reactivated.",
+            )
+
+        refreshed = self._get_work_order_or_404(
+            organization_id=organization_id,
+            work_order_id=work_order.id,
+            include_inactive=True,
+        )
+
         return self._build_response(
-            work_order
+            refreshed
         )
 
     def assign_workforce(
@@ -689,7 +884,13 @@ class WorkOrderService:
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
         workforce_profile_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> WorkOrderResponse:
+        """
+        Assign workforce and record the assignment.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -740,6 +941,22 @@ class WorkOrderService:
                     assignment
                 )
 
+                self._record_activity(
+                    organization_id=organization_id,
+                    work_order_id=work_order.id,
+                    actor_user_id=actor_user_id,
+                    activity_type="workforce_assigned",
+                    summary=(
+                        "Workforce member assigned "
+                        "to work order."
+                    ),
+                    details={
+                        "workforce_profile_id": str(
+                            workforce_profile.id
+                        ),
+                    },
+                )
+
             except IntegrityError as exc:
                 self.db.rollback()
 
@@ -765,7 +982,13 @@ class WorkOrderService:
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
         workforce_profile_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> None:
+        """
+        Remove workforce and record the removal.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -792,12 +1015,34 @@ class WorkOrderService:
             assignment
         )
 
+        self._record_activity(
+            organization_id=organization_id,
+            work_order_id=work_order.id,
+            actor_user_id=actor_user_id,
+            activity_type="workforce_removed",
+            summary=(
+                "Workforce member removed "
+                "from work order."
+            ),
+            details={
+                "workforce_profile_id": str(
+                    workforce_profile_id
+                ),
+            },
+        )
+
     def assign_asset(
         self,
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
         asset_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> WorkOrderResponse:
+        """
+        Assign an asset and record the assignment.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -850,6 +1095,19 @@ class WorkOrderService:
                     assignment
                 )
 
+                self._record_activity(
+                    organization_id=organization_id,
+                    work_order_id=work_order.id,
+                    actor_user_id=actor_user_id,
+                    activity_type="asset_assigned",
+                    summary=(
+                        "Asset assigned to work order."
+                    ),
+                    details={
+                        "asset_id": str(asset.id),
+                    },
+                )
+
             except IntegrityError as exc:
                 self.db.rollback()
 
@@ -875,7 +1133,13 @@ class WorkOrderService:
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
         asset_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID,
     ) -> None:
+        """
+        Remove an asset and record the removal.
+        """
+
         work_order = self._get_work_order_or_404(
             organization_id=organization_id,
             work_order_id=work_order_id,
@@ -896,4 +1160,15 @@ class WorkOrderService:
 
         self.work_orders.remove_asset_assignment(
             assignment
+        )
+
+        self._record_activity(
+            organization_id=organization_id,
+            work_order_id=work_order.id,
+            actor_user_id=actor_user_id,
+            activity_type="asset_removed",
+            summary="Asset removed from work order.",
+            details={
+                "asset_id": str(asset_id),
+            },
         )

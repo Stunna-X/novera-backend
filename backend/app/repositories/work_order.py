@@ -41,6 +41,10 @@ class WorkOrderRepository(
 
     @staticmethod
     def _assignment_options():
+        """
+        Return eager-loading options for assignments.
+        """
+
         return (
             selectinload(
                 WorkOrder.workforce_assignments
@@ -54,6 +58,10 @@ class WorkOrderRepository(
         self,
         work_order: WorkOrder,
     ) -> WorkOrder:
+        """
+        Persist a new work order.
+        """
+
         work_order.work_order_number = (
             work_order.work_order_number.strip().upper()
         )
@@ -71,11 +79,20 @@ class WorkOrderRepository(
         *,
         include_inactive: bool = False,
     ) -> WorkOrder | None:
+        """
+        Retrieve one organization work order.
+
+        populate_existing ensures assignment collections are
+        refreshed after workforce or asset mutations performed
+        within the same database session.
+        """
+
         query = (
             self.db.query(WorkOrder)
             .options(
                 *self._assignment_options()
             )
+            .populate_existing()
             .filter(
                 WorkOrder.id == work_order_id,
                 WorkOrder.organization_id
@@ -103,11 +120,16 @@ class WorkOrderRepository(
         customer_site_id: uuid.UUID | None = None,
         include_inactive: bool = False,
     ) -> list[WorkOrder]:
+        """
+        Retrieve organization work orders.
+        """
+
         query = (
             self.db.query(WorkOrder)
             .options(
                 *self._assignment_options()
             )
+            .populate_existing()
             .filter(
                 WorkOrder.organization_id
                 == organization_id
@@ -183,6 +205,10 @@ class WorkOrderRepository(
         customer_site_id: uuid.UUID | None = None,
         include_inactive: bool = False,
     ) -> int:
+        """
+        Count organization work orders.
+        """
+
         query = (
             self.db.query(
                 func.count(WorkOrder.id)
@@ -251,6 +277,10 @@ class WorkOrderRepository(
         *,
         exclude_work_order_id: uuid.UUID | None = None,
     ) -> bool:
+        """
+        Check work-order-number uniqueness.
+        """
+
         normalized_number = (
             work_order_number.strip().lower()
         )
@@ -278,6 +308,10 @@ class WorkOrderRepository(
         self,
         work_order: WorkOrder,
     ) -> WorkOrder:
+        """
+        Persist work-order changes.
+        """
+
         work_order.work_order_number = (
             work_order.work_order_number.strip().upper()
         )
@@ -292,6 +326,10 @@ class WorkOrderRepository(
         self,
         work_order: WorkOrder,
     ) -> WorkOrder:
+        """
+        Soft-delete a work order.
+        """
+
         work_order.is_active = False
 
         return self.update(
@@ -302,6 +340,10 @@ class WorkOrderRepository(
         self,
         work_order: WorkOrder,
     ) -> WorkOrder:
+        """
+        Reactivate a work order.
+        """
+
         work_order.is_active = True
 
         return self.update(
@@ -313,6 +355,10 @@ class WorkOrderRepository(
         work_order_id: uuid.UUID,
         workforce_profile_id: uuid.UUID,
     ) -> WorkOrderWorkforceAssignment | None:
+        """
+        Retrieve one workforce assignment.
+        """
+
         return (
             self.db.query(
                 WorkOrderWorkforceAssignment
@@ -331,6 +377,10 @@ class WorkOrderRepository(
         self,
         assignment: WorkOrderWorkforceAssignment,
     ) -> WorkOrderWorkforceAssignment:
+        """
+        Persist a workforce assignment.
+        """
+
         self.db.add(assignment)
         self.db.commit()
         self.db.refresh(assignment)
@@ -341,6 +391,10 @@ class WorkOrderRepository(
         self,
         assignment: WorkOrderWorkforceAssignment,
     ) -> None:
+        """
+        Delete a workforce assignment.
+        """
+
         self.db.delete(assignment)
         self.db.commit()
 
@@ -349,6 +403,10 @@ class WorkOrderRepository(
         work_order_id: uuid.UUID,
         asset_id: uuid.UUID,
     ) -> WorkOrderAssetAssignment | None:
+        """
+        Retrieve one asset assignment.
+        """
+
         return (
             self.db.query(
                 WorkOrderAssetAssignment
@@ -366,6 +424,10 @@ class WorkOrderRepository(
         self,
         assignment: WorkOrderAssetAssignment,
     ) -> WorkOrderAssetAssignment:
+        """
+        Persist an asset assignment.
+        """
+
         self.db.add(assignment)
         self.db.commit()
         self.db.refresh(assignment)
@@ -376,5 +438,9 @@ class WorkOrderRepository(
         self,
         assignment: WorkOrderAssetAssignment,
     ) -> None:
+        """
+        Delete an asset assignment.
+        """
+
         self.db.delete(assignment)
         self.db.commit()

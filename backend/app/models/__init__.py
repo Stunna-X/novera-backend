@@ -20,6 +20,7 @@ from app.models.work_order import (
     WorkOrderAssetAssignment,
     WorkOrderWorkforceAssignment,
 )
+from app.models.work_order_activity import WorkOrderActivity
 from app.models.workforce_profile import WorkforceProfile
 
 
@@ -35,6 +36,7 @@ __all__ = [
     "RolePermission",
     "User",
     "WorkOrder",
+    "WorkOrderActivity",
     "WorkOrderAssetAssignment",
     "WorkOrderWorkforceAssignment",
     "WorkforceProfile",
