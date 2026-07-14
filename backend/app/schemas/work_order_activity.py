@@ -26,6 +26,14 @@ WorkOrderActivityType = Literal[
     "asset_removed",
     "deactivated",
     "reactivated",
+    "checklist_item_created",
+    "checklist_item_updated",
+    "checklist_item_completed",
+    "checklist_item_skipped",
+    "checklist_item_reopened",
+    "checklist_reordered",
+    "checklist_item_deactivated",
+    "checklist_item_reactivated",
 ]
 
 

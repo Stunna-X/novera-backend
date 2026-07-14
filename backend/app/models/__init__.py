@@ -21,6 +21,9 @@ from app.models.work_order import (
     WorkOrderWorkforceAssignment,
 )
 from app.models.work_order_activity import WorkOrderActivity
+from app.models.work_order_checklist import (
+    WorkOrderChecklistItem,
+)
 from app.models.workforce_profile import WorkforceProfile
 
 
@@ -38,6 +41,7 @@ __all__ = [
     "WorkOrder",
     "WorkOrderActivity",
     "WorkOrderAssetAssignment",
+    "WorkOrderChecklistItem",
     "WorkOrderWorkforceAssignment",
     "WorkforceProfile",
 ]

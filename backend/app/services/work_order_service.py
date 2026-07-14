@@ -1,8 +1,9 @@
 """
 Work-order service.
 
-Contains validation, status transitions, assignments, and
-activity timeline recording for field-service work orders.
+Contains validation, status transitions, assignments, checklist
+completion enforcement, and activity timeline recording for
+field-service work orders.
 """
 
 from __future__ import annotations
@@ -28,6 +29,9 @@ from app.models.workforce_profile import WorkforceProfile
 from app.repositories.work_order import WorkOrderRepository
 from app.repositories.work_order_activity import (
     WorkOrderActivityRepository,
+)
+from app.repositories.work_order_checklist import (
+    WorkOrderChecklistRepository,
 )
 from app.schemas.work_order import (
     ChangeWorkOrderStatusSchema,
@@ -82,6 +86,7 @@ class WorkOrderService:
         self.db = db
         self.work_orders = WorkOrderRepository(db)
         self.activities = WorkOrderActivityRepository(db)
+        self.checklist = WorkOrderChecklistRepository(db)
 
     @staticmethod
     def _build_response(
@@ -96,15 +101,11 @@ class WorkOrderService:
             organization_id=work_order.organization_id,
             customer_id=work_order.customer_id,
             customer_site_id=work_order.customer_site_id,
-            work_order_number=(
-                work_order.work_order_number
-            ),
+            work_order_number=work_order.work_order_number,
             title=work_order.title,
             description=work_order.description,
             job_type=work_order.job_type,
-            customer_reference=(
-                work_order.customer_reference
-            ),
+            customer_reference=work_order.customer_reference,
             priority=work_order.priority,
             status=work_order.status,
             scheduled_start=work_order.scheduled_start,
@@ -114,12 +115,8 @@ class WorkOrderService:
             estimated_cost=work_order.estimated_cost,
             actual_cost=work_order.actual_cost,
             instructions=work_order.instructions,
-            completion_notes=(
-                work_order.completion_notes
-            ),
-            cancellation_reason=(
-                work_order.cancellation_reason
-            ),
+            completion_notes=work_order.completion_notes,
+            cancellation_reason=work_order.cancellation_reason,
             workforce_profile_ids=[
                 assignment.workforce_profile_id
                 for assignment
@@ -274,10 +271,7 @@ class WorkOrderService:
 
         for _ in range(10):
             suffix = uuid.uuid4().hex[:6].upper()
-
-            candidate = (
-                f"WO-{date_part}-{suffix}"
-            )
+            candidate = f"WO-{date_part}-{suffix}"
 
             if not self.work_orders.number_exists(
                 organization_id=organization_id,
@@ -286,9 +280,7 @@ class WorkOrderService:
                 return candidate
 
         raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=(
                 "Unable to generate a unique "
                 "work-order number."
@@ -334,13 +326,62 @@ class WorkOrderService:
             and scheduled_end <= scheduled_start
         ):
             raise HTTPException(
-                status_code=(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY
-                ),
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=(
                     "Scheduled end must be after "
                     "scheduled start."
                 ),
+            )
+
+    def _ensure_required_checklist_complete(
+        self,
+        organization_id: uuid.UUID,
+        work_order_id: uuid.UUID,
+    ) -> None:
+        """
+        Prevent completion while required checklist items remain.
+
+        Only active checklist items are considered. Required
+        items must have the completed status. Skipping a required
+        item does not satisfy the completion requirement.
+        """
+
+        counts = self.checklist.get_progress_counts(
+            organization_id=organization_id,
+            work_order_id=work_order_id,
+        )
+
+        required_items = counts[
+            "required_items"
+        ]
+
+        completed_required_items = counts[
+            "completed_required_items"
+        ]
+
+        incomplete_required_items = max(
+            required_items
+            - completed_required_items,
+            0,
+        )
+
+        if incomplete_required_items > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": (
+                        "All required checklist items "
+                        "must be completed before the "
+                        "work order can be completed."
+                    ),
+                    "required_items": required_items,
+                    "completed_required_items": (
+                        completed_required_items
+                    ),
+                    "incomplete_required_items": (
+                        incomplete_required_items
+                    ),
+                },
             )
 
     def create_work_order(
@@ -388,10 +429,8 @@ class WorkOrderService:
         )
 
         try:
-            created = (
-                self.work_orders.create_work_order(
-                    work_order
-                )
+            created = self.work_orders.create_work_order(
+                work_order
             )
 
             self._record_activity(
@@ -426,9 +465,7 @@ class WorkOrderService:
 
             if loaded is None:
                 raise HTTPException(
-                    status_code=(
-                        status.HTTP_500_INTERNAL_SERVER_ERROR
-                    ),
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=(
                         "Unable to load the created "
                         "work order."
@@ -575,9 +612,7 @@ class WorkOrderService:
                 and update_data[field_name] is None
             ):
                 raise HTTPException(
-                    status_code=(
-                        status.HTTP_422_UNPROCESSABLE_ENTITY
-                    ),
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
                         f"{field_name.replace('_', ' ').title()} "
                         "cannot be null."
@@ -641,10 +676,8 @@ class WorkOrderService:
             )
 
         try:
-            updated = (
-                self.work_orders.update_work_order(
-                    work_order
-                )
+            updated = self.work_orders.update_work_order(
+                work_order
             )
 
             self._record_activity(
@@ -734,6 +767,12 @@ class WorkOrderService:
                 ),
             )
 
+        if payload.status == "completed":
+            self._ensure_required_checklist_complete(
+                organization_id=organization_id,
+                work_order_id=work_order_id,
+            )
+
         now = datetime.now(
             timezone.utc
         )
@@ -767,10 +806,8 @@ class WorkOrderService:
 
         work_order.status = payload.status
 
-        updated = (
-            self.work_orders.update_work_order(
-                work_order
-            )
+        updated = self.work_orders.update_work_order(
+            work_order
         )
 
         self._record_activity(
@@ -855,10 +892,8 @@ class WorkOrderService:
         )
 
         if not work_order.is_active:
-            work_order = (
-                self.work_orders.reactivate(
-                    work_order
-                )
+            work_order = self.work_orders.reactivate(
+                work_order
             )
 
             self._record_activity(
@@ -927,13 +962,11 @@ class WorkOrderService:
         )
 
         if existing_assignment is None:
-            assignment = (
-                WorkOrderWorkforceAssignment(
-                    work_order_id=work_order.id,
-                    workforce_profile_id=(
-                        workforce_profile.id
-                    ),
-                )
+            assignment = WorkOrderWorkforceAssignment(
+                work_order_id=work_order.id,
+                workforce_profile_id=(
+                    workforce_profile.id
+                ),
             )
 
             try:

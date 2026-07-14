@@ -14,6 +14,9 @@ from app.api.v1.health.router import router as health_router
 from app.api.v1.memberships.router import router as membership_router
 from app.api.v1.organizations.router import router as organization_router
 from app.api.v1.roles.router import router as role_router
+from app.api.v1.work_order_checklists.router import (
+    router as work_order_checklist_router,
+)
 from app.api.v1.work_orders.router import router as work_order_router
 from app.api.v1.workforce.router import router as workforce_router
 
@@ -59,4 +62,8 @@ api_router.include_router(
 
 api_router.include_router(
     work_order_router,
+)
+
+api_router.include_router(
+    work_order_checklist_router,
 )
