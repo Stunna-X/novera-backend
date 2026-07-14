@@ -34,6 +34,12 @@ WorkOrderActivityType = Literal[
     "checklist_reordered",
     "checklist_item_deactivated",
     "checklist_item_reactivated",
+    "work_order_note_created",
+    "work_order_note_updated",
+    "work_order_note_deactivated",
+    "work_order_note_reactivated",
+    "work_order_note_attachment_added",
+    "work_order_note_attachment_removed",
 ]
 
 

@@ -3,7 +3,7 @@ Work-order models.
 
 Stores field-service work orders and their assigned
 workforce members, operational assets, checklist items,
-and activity history.
+notes, and activity history.
 """
 
 from __future__ import annotations
@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from app.models.work_order_checklist import (
         WorkOrderChecklistItem,
     )
+    from app.models.work_order_note import WorkOrderNote
     from app.models.workforce_profile import WorkforceProfile
 
 
@@ -257,6 +258,16 @@ class WorkOrder(BaseModel):
             "WorkOrderChecklistItem.position, "
             "WorkOrderChecklistItem.created_at"
         ),
+    )
+
+    notes: Mapped[
+        list["WorkOrderNote"]
+    ] = relationship(
+        "WorkOrderNote",
+        back_populates="work_order",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="WorkOrderNote.created_at",
     )
 
     activities: Mapped[
