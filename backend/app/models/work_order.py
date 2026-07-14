@@ -1,9 +1,9 @@
 """
 Work-order models.
 
-Stores field-service work orders and their assigned
-workforce members, operational assets, checklist items,
-notes, and activity history.
+Stores field-service work orders and their assigned workforce
+members, operational assets, checklist items, notes, expenses,
+and activity history.
 """
 
 from __future__ import annotations
@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from app.models.work_order_checklist import (
         WorkOrderChecklistItem,
     )
+    from app.models.work_order_expense import WorkOrderExpense
     from app.models.work_order_note import WorkOrderNote
     from app.models.workforce_profile import WorkforceProfile
 
@@ -260,14 +261,25 @@ class WorkOrder(BaseModel):
         ),
     )
 
-    notes: Mapped[
-        list["WorkOrderNote"]
-    ] = relationship(
+    notes: Mapped[list["WorkOrderNote"]] = relationship(
         "WorkOrderNote",
         back_populates="work_order",
         cascade="all, delete-orphan",
         lazy="selectin",
         order_by="WorkOrderNote.created_at",
+    )
+
+    expenses: Mapped[
+        list["WorkOrderExpense"]
+    ] = relationship(
+        "WorkOrderExpense",
+        back_populates="work_order",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by=(
+            "WorkOrderExpense.expense_date, "
+            "WorkOrderExpense.created_at"
+        ),
     )
 
     activities: Mapped[

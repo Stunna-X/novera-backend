@@ -8,19 +8,30 @@ from fastapi import APIRouter
 
 from app.api.v1.assets.router import router as asset_router
 from app.api.v1.auth.router import router as auth_router
-from app.api.v1.customer_sites.router import router as customer_site_router
+from app.api.v1.customer_sites.router import (
+    router as customer_site_router,
+)
 from app.api.v1.customers.router import router as customer_router
 from app.api.v1.health.router import router as health_router
-from app.api.v1.memberships.router import router as membership_router
-from app.api.v1.organizations.router import router as organization_router
+from app.api.v1.memberships.router import (
+    router as membership_router,
+)
+from app.api.v1.organizations.router import (
+    router as organization_router,
+)
 from app.api.v1.roles.router import router as role_router
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
 )
+from app.api.v1.work_order_expenses.router import (
+    router as work_order_expense_router,
+)
 from app.api.v1.work_order_notes.router import (
     router as work_order_note_router,
 )
-from app.api.v1.work_orders.router import router as work_order_router
+from app.api.v1.work_orders.router import (
+    router as work_order_router,
+)
 from app.api.v1.workforce.router import router as workforce_router
 
 
@@ -73,4 +84,8 @@ api_router.include_router(
 
 api_router.include_router(
     work_order_note_router,
+)
+
+api_router.include_router(
+    work_order_expense_router,
 )

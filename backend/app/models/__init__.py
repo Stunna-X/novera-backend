@@ -24,6 +24,7 @@ from app.models.work_order_activity import WorkOrderActivity
 from app.models.work_order_checklist import (
     WorkOrderChecklistItem,
 )
+from app.models.work_order_expense import WorkOrderExpense
 from app.models.work_order_note import (
     WorkOrderNote,
     WorkOrderNoteAttachment,
@@ -46,6 +47,7 @@ __all__ = [
     "WorkOrderActivity",
     "WorkOrderAssetAssignment",
     "WorkOrderChecklistItem",
+    "WorkOrderExpense",
     "WorkOrderNote",
     "WorkOrderNoteAttachment",
     "WorkOrderWorkforceAssignment",

@@ -1,7 +1,7 @@
 """
 Work-order activity schemas.
 
-Defines API responses for work-order timeline entries.
+Defines API responses for immutable work-order timeline entries.
 """
 
 from __future__ import annotations
@@ -10,10 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import (
-    BaseModel,
-    Field,
-)
+from pydantic import BaseModel, Field
 
 
 WorkOrderActivityType = Literal[
@@ -40,6 +37,11 @@ WorkOrderActivityType = Literal[
     "work_order_note_reactivated",
     "work_order_note_attachment_added",
     "work_order_note_attachment_removed",
+    "work_order_expense_created",
+    "work_order_expense_updated",
+    "work_order_expense_status_changed",
+    "work_order_expense_deactivated",
+    "work_order_expense_reactivated",
 ]
 
 
