@@ -8,6 +8,11 @@ registered in SQLAlchemy metadata and detected by Alembic.
 from app.models.asset import Asset
 from app.models.customer import Customer
 from app.models.customer_site import CustomerSite
+from app.models.invoice import (
+    Invoice,
+    InvoiceLineItem,
+    InvoicePayment,
+)
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.permission import Permission
@@ -36,6 +41,9 @@ __all__ = [
     "Asset",
     "Customer",
     "CustomerSite",
+    "Invoice",
+    "InvoiceLineItem",
+    "InvoicePayment",
     "Membership",
     "Organization",
     "Permission",

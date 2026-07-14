@@ -13,6 +13,7 @@ from app.api.v1.customer_sites.router import (
 )
 from app.api.v1.customers.router import router as customer_router
 from app.api.v1.health.router import router as health_router
+from app.api.v1.invoices.router import router as invoice_router
 from app.api.v1.memberships.router import (
     router as membership_router,
 )
@@ -88,4 +89,8 @@ api_router.include_router(
 
 api_router.include_router(
     work_order_expense_router,
+)
+
+api_router.include_router(
+    invoice_router,
 )

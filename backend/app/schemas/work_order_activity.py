@@ -42,6 +42,15 @@ WorkOrderActivityType = Literal[
     "work_order_expense_status_changed",
     "work_order_expense_deactivated",
     "work_order_expense_reactivated",
+    "invoice_created",
+    "invoice_updated",
+    "invoice_line_item_added",
+    "invoice_line_item_updated",
+    "invoice_line_item_removed",
+    "invoice_issued",
+    "invoice_payment_recorded",
+    "invoice_payment_reversed",
+    "invoice_voided",
 ]
 
 
