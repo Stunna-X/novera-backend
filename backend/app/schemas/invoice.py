@@ -216,6 +216,114 @@ class InvoiceCreate(BaseModel):
         return self
 
 
+
+class InvoiceFromCloseoutCreate(BaseModel):
+    currency: str = Field(
+        default="NGN",
+        min_length=3,
+        max_length=3,
+        pattern=r"^[A-Za-z]{3}$",
+    )
+
+    invoice_date: date = Field(
+        default_factory=date.today,
+    )
+
+    due_date: date | None = None
+
+    discount_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    tax_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    billing_address: str | None = Field(
+        default=None,
+        max_length=2000,
+    )
+
+    notes: str | None = Field(
+        default=None,
+        max_length=5000,
+    )
+
+    terms: str | None = Field(
+        default=None,
+        max_length=5000,
+    )
+
+    include_estimated_cost_line: bool = True
+
+    closeout_line_description: str | None = Field(
+        default=None,
+        max_length=500,
+    )
+
+    manual_line_items: list[
+        InvoiceManualLineItemCreate
+    ] = Field(
+        default_factory=list,
+        max_length=200,
+    )
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(
+        cls,
+        value: str,
+    ) -> str:
+        return value.strip().upper()
+
+    @field_validator(
+        "billing_address",
+        "notes",
+        "terms",
+        "closeout_line_description",
+    )
+    @classmethod
+    def normalize_optional_text(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+
+        return normalized or None
+
+    @model_validator(mode="after")
+    def validate_closeout_invoice_payload(
+        self,
+    ) -> Self:
+        if (
+            self.due_date is not None
+            and self.due_date < self.invoice_date
+        ):
+            raise ValueError(
+                "due_date cannot be earlier than invoice_date."
+            )
+
+        if (
+            not self.include_estimated_cost_line
+            and not self.manual_line_items
+        ):
+            raise ValueError(
+                "Either include_estimated_cost_line must be true "
+                "or at least one manual line item must be supplied."
+            )
+
+        return self
+
+
 class InvoiceUpdate(BaseModel):
     """
     Editable fields on a draft invoice.

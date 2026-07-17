@@ -27,6 +27,7 @@ from app.enums.invoice import InvoiceStatus
 from app.schemas.invoice import (
     InvoiceCreate,
     InvoiceExpenseLineCreate,
+    InvoiceFromCloseoutCreate,
     InvoiceIssueRequest,
     InvoiceLineItemCreate,
     InvoiceLineItemUpdate,
@@ -74,6 +75,31 @@ def create_work_order_invoice(
         payload=payload,
         actor_user_id=context.membership.user_id,
     )
+
+
+@router.post(
+    "/work-orders/{work_order_id}/invoices/from-closeout",
+    response_model=InvoiceResponse,
+    status_code=201,
+    summary="Create final invoice from approved closeout",
+)
+def create_work_order_invoice_from_closeout(
+    work_order_id: uuid.UUID,
+    payload: InvoiceFromCloseoutCreate,
+    context: OrganizationContext = Depends(
+        require_permission("work_orders.update")
+    ),
+    db: Session = Depends(get_db),
+) -> InvoiceResponse:
+    service = InvoiceService(db)
+
+    return service.create_invoice_from_closeout(
+        organization_id=context.organization.id,
+        work_order_id=work_order_id,
+        payload=payload,
+        actor_user_id=context.membership.user_id,
+    )
+
 
 
 @router.get(

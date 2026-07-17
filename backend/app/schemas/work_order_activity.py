@@ -56,7 +56,8 @@ WorkOrderActivityType = Literal[
     "closeout_updated",
     "closeout_approved",
     "closeout_rejected",
-    "closeout_invoice_ready",]
+    "closeout_invoice_ready",
+    "invoice_created_from_closeout",]
 
 
 class WorkOrderActivityResponse(BaseModel):

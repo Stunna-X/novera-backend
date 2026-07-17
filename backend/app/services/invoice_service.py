@@ -28,6 +28,7 @@ from app.models.invoice import (
     InvoicePayment,
 )
 from app.models.work_order_activity import WorkOrderActivity
+from app.models.work_order_closeout import WorkOrderCloseout
 from app.repositories.customer import CustomerRepository
 from app.repositories.invoice import InvoiceRepository
 from app.repositories.work_order import WorkOrderRepository
@@ -35,6 +36,7 @@ from app.schemas.invoice import (
     InvoiceCreate,
     InvoiceCurrencySummary,
     InvoiceExpenseLineCreate,
+    InvoiceFromCloseoutCreate,
     InvoiceIssueRequest,
     InvoiceLineItemCreate,
     InvoiceLineItemResponse,
@@ -903,6 +905,284 @@ class InvoiceService:
         except Exception:
             self.db.rollback()
             raise
+
+
+    def create_invoice_from_closeout(
+        self,
+        organization_id: uuid.UUID,
+        work_order_id: uuid.UUID,
+        payload: InvoiceFromCloseoutCreate,
+        *,
+        actor_user_id: uuid.UUID,
+    ) -> InvoiceResponse:
+        work_order = self.work_orders.get_for_organization(
+            organization_id=organization_id,
+            work_order_id=work_order_id,
+        )
+
+        if work_order is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work order not found.",
+            )
+
+        if work_order.status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Only completed work orders can be invoiced "
+                    "from closeout."
+                ),
+            )
+
+        closeout = (
+            self.db.query(WorkOrderCloseout)
+            .filter(
+                WorkOrderCloseout.organization_id
+                == organization_id,
+                WorkOrderCloseout.work_order_id
+                == work_order_id,
+            )
+            .first()
+        )
+
+        if closeout is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work-order closeout not found.",
+            )
+
+        if (
+            closeout.status != "approved"
+            or not closeout.is_invoice_ready
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Only approved, invoice-ready closeouts "
+                    "can generate final invoices."
+                ),
+            )
+
+        existing_invoice = (
+            self.db.query(Invoice)
+            .filter(
+                Invoice.organization_id == organization_id,
+                Invoice.work_order_id == work_order_id,
+                Invoice.is_active.is_(True),
+                Invoice.status != InvoiceStatus.VOID.value,
+            )
+            .first()
+        )
+
+        if existing_invoice is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This work order already has an active "
+                    "non-void invoice."
+                ),
+            )
+
+        customer = (
+            self.customers.get_by_id_for_organization(
+                organization_id=organization_id,
+                customer_id=work_order.customer_id,
+            )
+        )
+
+        if customer is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work-order customer not found.",
+            )
+
+        currency = payload.currency.strip().upper()
+
+        invoice_number = self._generate_invoice_number(
+            organization_id=organization_id,
+            invoice_date=payload.invoice_date,
+        )
+
+        invoice = Invoice(
+            organization_id=organization_id,
+            customer_id=customer.id,
+            work_order_id=work_order.id,
+            created_by_user_id=actor_user_id,
+            invoice_number=invoice_number,
+            currency=currency,
+            status=InvoiceStatus.DRAFT.value,
+            invoice_date=payload.invoice_date,
+            due_date=payload.due_date,
+            subtotal=Decimal("0.00"),
+            discount_amount=self._money(
+                payload.discount_amount
+            ),
+            tax_amount=self._money(
+                payload.tax_amount
+            ),
+            total_amount=Decimal("0.00"),
+            amount_paid=Decimal("0.00"),
+            balance_due=Decimal("0.00"),
+            customer_name=customer.name,
+            customer_email=customer.email,
+            customer_phone=customer.phone,
+            billing_address=(
+                payload.billing_address
+                or self._build_billing_address(customer)
+            ),
+            notes=(
+                payload.notes
+                or (
+                    "Final invoice generated from approved "
+                    "work-order closeout."
+                )
+            ),
+            terms=payload.terms,
+        )
+
+        try:
+            created = self.invoices.create_invoice(
+                invoice
+            )
+
+            generated_closeout_line_count = 0
+
+            if payload.include_estimated_cost_line:
+                estimated_cost = self._money(
+                    work_order.estimated_cost
+                    or Decimal("0.00")
+                )
+
+                if estimated_cost <= Decimal("0.00"):
+                    raise HTTPException(
+                        status_code=(
+                            status.HTTP_422_UNPROCESSABLE_ENTITY
+                        ),
+                        detail=(
+                            "Work order estimated_cost is required "
+                            "when include_estimated_cost_line is true."
+                        ),
+                    )
+
+                description = (
+                    payload.closeout_line_description
+                    or (
+                        "Final invoice for "
+                        f"{work_order.work_order_number}: "
+                        f"{work_order.title}"
+                    )
+                )
+
+                self.invoices.add_line_item(
+                    InvoiceLineItem(
+                        invoice_id=created.id,
+                        work_order_expense_id=None,
+                        source_type=(
+                            InvoiceLineSource.MANUAL.value
+                        ),
+                        description=description,
+                        quantity=Decimal("1.000"),
+                        unit_price=estimated_cost,
+                        line_total=estimated_cost,
+                        position=self.invoices.next_line_position(
+                            created.id
+                        ),
+                        is_active=True,
+                    )
+                )
+
+                generated_closeout_line_count = 1
+
+            for manual_line in payload.manual_line_items:
+                position = self._resolve_position(
+                    created.id,
+                    manual_line.position,
+                )
+
+                line_total = self._calculate_line_total(
+                    quantity=manual_line.quantity,
+                    unit_price=manual_line.unit_price,
+                )
+
+                self.invoices.add_line_item(
+                    InvoiceLineItem(
+                        invoice_id=created.id,
+                        work_order_expense_id=None,
+                        source_type=(
+                            InvoiceLineSource.MANUAL.value
+                        ),
+                        description=manual_line.description,
+                        quantity=manual_line.quantity,
+                        unit_price=manual_line.unit_price,
+                        line_total=line_total,
+                        position=position,
+                        is_active=True,
+                    )
+                )
+
+            created = self._recalculate_invoice(
+                created
+            )
+
+            self._record_activity(
+                organization_id=organization_id,
+                work_order_id=work_order_id,
+                actor_user_id=actor_user_id,
+                activity_type="invoice_created_from_closeout",
+                summary=(
+                    f"Final invoice {created.invoice_number} "
+                    "created from approved closeout."
+                ),
+                to_status=InvoiceStatus.DRAFT.value,
+                details={
+                    "invoice_id": str(created.id),
+                    "invoice_number": created.invoice_number,
+                    "closeout_id": str(closeout.id),
+                    "currency": created.currency,
+                    "subtotal": str(created.subtotal),
+                    "total_amount": str(
+                        created.total_amount
+                    ),
+                    "generated_closeout_line_count": (
+                        generated_closeout_line_count
+                    ),
+                    "manual_line_count": len(
+                        payload.manual_line_items
+                    ),
+                },
+            )
+
+            self.db.commit()
+
+            loaded = self._reload_invoice(
+                organization_id=organization_id,
+                invoice_id=created.id,
+            )
+
+            return self._build_response(
+                loaded
+            )
+
+        except HTTPException:
+            self.db.rollback()
+            raise
+
+        except IntegrityError as exc:
+            self.db.rollback()
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "The closeout invoice conflicts with "
+                    "an existing invoice or line item."
+                ),
+            ) from exc
+
+        except Exception:
+            self.db.rollback()
+            raise
+
 
     def list_invoices(
         self,
