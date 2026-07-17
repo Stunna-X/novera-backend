@@ -24,6 +24,7 @@ from app.api.v1.organizations.router import (
     router as organization_router,
 )
 from app.api.v1.quotes.router import router as quote_router
+from app.api.v1.reports.router import router as reports_router
 from app.api.v1.roles.router import router as role_router
 from app.api.v1.scheduling.router import (
     router as scheduling_router,
@@ -99,6 +100,10 @@ api_router.include_router(
 
 api_router.include_router(
     dashboard_router,
+)
+
+api_router.include_router(
+    reports_router,
 )
 
 api_router.include_router(
