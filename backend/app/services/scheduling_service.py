@@ -29,6 +29,7 @@ from app.models.work_order import (
 )
 from app.models.work_order_activity import WorkOrderActivity
 from app.models.workforce_profile import WorkforceProfile
+from app.services.auto_notification_service import AutoNotificationService
 from app.schemas.scheduling import (
     DispatchWorkOrderSchema,
     ScheduleCalendarItem,
@@ -69,6 +70,7 @@ class SchedulingService:
         db: Session,
     ):
         self.db = db
+        self.auto_notifications = AutoNotificationService(db)
 
     @staticmethod
     def _normalize_datetime(
@@ -964,6 +966,13 @@ class SchedulingService:
                 },
             )
 
+            # Auto notification: work order scheduled.
+            self.auto_notifications.notify_work_order_scheduled(
+                organization_id=organization_id,
+                work_order=work_order,
+                actor_user_id=actor_user_id,
+            )
+
             self.db.commit()
 
         except IntegrityError as exc:
@@ -1112,6 +1121,13 @@ class SchedulingService:
             },
         )
 
+        # Auto notification: work order dispatched.
+        self.auto_notifications.notify_work_order_dispatched(
+            organization_id=organization_id,
+            work_order=work_order,
+            actor_user_id=actor_user_id,
+        )
+
         self.db.commit()
 
         refreshed = self._get_work_order_or_404(
@@ -1125,3 +1141,4 @@ class SchedulingService:
             ),
             conflicts=conflicts_response.conflicts,
         )
+

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Work-order service.
 
 Contains validation, status transitions, assignments, checklist
@@ -33,6 +33,7 @@ from app.repositories.work_order_activity import (
 from app.repositories.work_order_checklist import (
     WorkOrderChecklistRepository,
 )
+from app.services.auto_notification_service import AutoNotificationService
 from app.schemas.work_order import (
     ChangeWorkOrderStatusSchema,
     CreateWorkOrderSchema,
@@ -87,6 +88,7 @@ class WorkOrderService:
         self.work_orders = WorkOrderRepository(db)
         self.activities = WorkOrderActivityRepository(db)
         self.checklist = WorkOrderChecklistRepository(db)
+        self.auto_notifications = AutoNotificationService(db)
 
     @staticmethod
     def _build_response(
@@ -823,6 +825,16 @@ class WorkOrderService:
             to_status=payload.status,
             note=payload.note,
         )
+
+        # Auto notification: work order completed.
+        if payload.status == "completed":
+            self.auto_notifications.notify_work_order_completed(
+                organization_id=organization_id,
+                work_order=updated,
+                actor_user_id=actor_user_id,
+            )
+
+        self.db.commit()
 
         refreshed = self._get_work_order_or_404(
             organization_id=organization_id,

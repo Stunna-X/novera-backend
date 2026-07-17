@@ -24,6 +24,7 @@ from app.repositories.work_order_activity import (
 from app.repositories.work_order_closeout import (
     WorkOrderCloseoutRepository,
 )
+from app.services.auto_notification_service import AutoNotificationService
 from app.schemas.work_order_closeout import (
     ApproveWorkOrderCloseoutSchema,
     MarkCloseoutInvoiceReadySchema,
@@ -45,6 +46,7 @@ class WorkOrderCloseoutService:
         self.work_orders = WorkOrderRepository(db)
         self.closeouts = WorkOrderCloseoutRepository(db)
         self.activities = WorkOrderActivityRepository(db)
+        self.auto_notifications = AutoNotificationService(db)
 
     @staticmethod
     def _now() -> datetime:
@@ -478,6 +480,24 @@ class WorkOrderCloseoutService:
             },
         )
 
+        # Auto notification: closeout approved.
+        self.auto_notifications.notify_closeout_approved(
+            organization_id=organization_id,
+            closeout=closeout,
+            work_order=work_order,
+            actor_user_id=actor_user_id,
+        )
+
+        if closeout.is_invoice_ready:
+            self.auto_notifications.notify_closeout_invoice_ready(
+                organization_id=organization_id,
+                closeout=closeout,
+                work_order=work_order,
+                actor_user_id=actor_user_id,
+            )
+
+        self.db.commit()
+
         return self._build_response(
             closeout
         )
@@ -608,6 +628,17 @@ class WorkOrderCloseoutService:
             },
         )
 
+        # Auto notification: closeout invoice ready.
+        self.auto_notifications.notify_closeout_invoice_ready(
+            organization_id=organization_id,
+            closeout=closeout,
+            work_order=work_order,
+            actor_user_id=actor_user_id,
+        )
+
+        self.db.commit()
+
         return self._build_response(
             closeout
         )
+

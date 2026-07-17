@@ -1,4 +1,4 @@
-"""
+﻿"""
 Invoice service.
 
 Handles organization-scoped invoice creation, expense conversion,
@@ -32,6 +32,7 @@ from app.models.work_order_closeout import WorkOrderCloseout
 from app.repositories.customer import CustomerRepository
 from app.repositories.invoice import InvoiceRepository
 from app.repositories.work_order import WorkOrderRepository
+from app.services.auto_notification_service import AutoNotificationService
 from app.schemas.invoice import (
     InvoiceCreate,
     InvoiceCurrencySummary,
@@ -72,6 +73,7 @@ class InvoiceService:
         self.invoices = InvoiceRepository(db)
         self.customers = CustomerRepository(db)
         self.work_orders = WorkOrderRepository(db)
+        self.auto_notifications = AutoNotificationService(db)
 
     @staticmethod
     def _utc_now() -> datetime:
@@ -1951,6 +1953,13 @@ class InvoiceService:
                 },
             )
 
+            # Auto notification: invoice issued.
+            self.auto_notifications.notify_invoice_issued(
+                organization_id=organization_id,
+                invoice=invoice,
+                actor_user_id=actor_user_id,
+            )
+
             self.db.commit()
 
             loaded = self._reload_invoice(
@@ -2072,6 +2081,14 @@ class InvoiceService:
                         invoice.balance_due
                     ),
                 },
+            )
+
+            # Auto notification: payment recorded.
+            self.auto_notifications.notify_payment_recorded(
+                organization_id=organization_id,
+                invoice=invoice,
+                payment=payment,
+                actor_user_id=actor_user_id,
             )
 
             self.db.commit()

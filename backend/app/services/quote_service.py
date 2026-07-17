@@ -1,4 +1,4 @@
-"""
+﻿"""
 Quote service.
 
 Implements quote creation, pricing, lifecycle transitions,
@@ -36,6 +36,7 @@ from app.models.quote import (
 from app.models.work_order import WorkOrder
 from app.models.work_order_activity import WorkOrderActivity
 from app.repositories.quote import QuoteRepository
+from app.services.auto_notification_service import AutoNotificationService
 from app.schemas.quote import (
     QuoteActivityListResponse,
     QuoteActivityResponse,
@@ -72,6 +73,7 @@ class QuoteService:
     ):
         self.db = db
         self.quotes = QuoteRepository(db)
+        self.auto_notifications = AutoNotificationService(db)
 
     @staticmethod
     def _money(
@@ -1795,6 +1797,13 @@ class QuoteService:
                 },
             )
 
+            # Auto notification: quote accepted.
+            self.auto_notifications.notify_quote_accepted(
+                organization_id=organization_id,
+                quote=quote,
+                actor_user_id=actor_user_id,
+            )
+
             self.db.commit()
 
             loaded = self._reload_quote(
@@ -2176,6 +2185,14 @@ class QuoteService:
                         quote.total_amount
                     ),
                 },
+            )
+
+            # Auto notification: quote converted.
+            self.auto_notifications.notify_quote_converted(
+                organization_id=organization_id,
+                quote=quote,
+                work_order=work_order,
+                actor_user_id=actor_user_id,
             )
 
             self.db.commit()
