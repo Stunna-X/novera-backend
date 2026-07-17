@@ -1,4 +1,4 @@
-"""
+﻿"""
 Seed Novera's default roles, permissions, and role assignments.
 
 Run from the backend directory with:
@@ -68,7 +68,7 @@ PERMISSIONS: dict[str, str] = {
     "work_orders.update": "Update work orders.",
     "work_orders.delete": "Delete work orders.",
     "work_orders.assign": "Assign work orders to field personnel.",
-    "work_orders.update_status": "Update work-order status.",
+    "work_orders.status": "Update work-order status.",
 
     # Dashboard and reports
     "dashboard.read": "View the operations dashboard.",
@@ -125,7 +125,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "work_orders.update",
             "work_orders.delete",
             "work_orders.assign",
-            "work_orders.update_status",
+            "work_orders.status",
             "dashboard.read",
             "reports.read",
             "reports.export",
@@ -147,7 +147,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "work_orders.create",
             "work_orders.update",
             "work_orders.assign",
-            "work_orders.update_status",
+            "work_orders.status",
             "dashboard.read",
             "reports.read",
         },
@@ -161,7 +161,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "assets.read",
             "projects.read",
             "work_orders.read",
-            "work_orders.update_status",
+            "work_orders.status",
         },
     },
     "Viewer": {

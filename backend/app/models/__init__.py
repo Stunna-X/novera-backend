@@ -16,6 +16,11 @@ from app.models.invoice import (
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.permission import Permission
+from app.models.quote import (
+    Quote,
+    QuoteActivity,
+    QuoteLineItem,
+)
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
 from app.models.role_permission import RolePermission
@@ -47,6 +52,9 @@ __all__ = [
     "Membership",
     "Organization",
     "Permission",
+    "Quote",
+    "QuoteActivity",
+    "QuoteLineItem",
     "RefreshToken",
     "Role",
     "RolePermission",
