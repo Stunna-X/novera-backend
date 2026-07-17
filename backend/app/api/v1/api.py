@@ -20,6 +20,9 @@ from app.api.v1.invoices.router import router as invoice_router
 from app.api.v1.memberships.router import (
     router as membership_router,
 )
+from app.api.v1.notifications.router import (
+    router as notification_router,
+)
 from app.api.v1.organizations.router import (
     router as organization_router,
 )
@@ -104,6 +107,10 @@ api_router.include_router(
 
 api_router.include_router(
     reports_router,
+)
+
+api_router.include_router(
+    notification_router,
 )
 
 api_router.include_router(
