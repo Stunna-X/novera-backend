@@ -12,6 +12,9 @@ from app.api.v1.customer_sites.router import (
     router as customer_site_router,
 )
 from app.api.v1.customers.router import router as customer_router
+from app.api.v1.dashboard.router import (
+    router as dashboard_router,
+)
 from app.api.v1.health.router import router as health_router
 from app.api.v1.invoices.router import router as invoice_router
 from app.api.v1.memberships.router import (
@@ -28,6 +31,9 @@ from app.api.v1.scheduling.router import (
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
 )
+from app.api.v1.work_order_closeouts.router import (
+    router as work_order_closeout_router,
+)
 from app.api.v1.work_order_expenses.router import (
     router as work_order_expense_router,
 )
@@ -39,10 +45,6 @@ from app.api.v1.work_orders.router import (
 )
 from app.api.v1.workforce.router import router as workforce_router
 
-
-from app.api.v1.work_order_closeouts.router import (
-    router as work_order_closeout_router,
-)
 
 api_router = APIRouter()
 
@@ -93,6 +95,10 @@ api_router.include_router(
 
 api_router.include_router(
     scheduling_router,
+)
+
+api_router.include_router(
+    dashboard_router,
 )
 
 api_router.include_router(
