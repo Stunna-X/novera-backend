@@ -22,6 +22,9 @@ from app.api.v1.organizations.router import (
 )
 from app.api.v1.quotes.router import router as quote_router
 from app.api.v1.roles.router import router as role_router
+from app.api.v1.scheduling.router import (
+    router as scheduling_router,
+)
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
 )
@@ -81,6 +84,10 @@ api_router.include_router(
 )
 
 api_router.include_router(
+    scheduling_router,
+)
+
+api_router.include_router(
     work_order_checklist_router,
 )
 
@@ -99,4 +106,3 @@ api_router.include_router(
 api_router.include_router(
     quote_router,
 )
-  
