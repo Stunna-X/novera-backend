@@ -40,6 +40,10 @@ from app.api.v1.work_orders.router import (
 from app.api.v1.workforce.router import router as workforce_router
 
 
+from app.api.v1.work_order_closeouts.router import (
+    router as work_order_closeout_router,
+)
+
 api_router = APIRouter()
 
 
@@ -81,6 +85,10 @@ api_router.include_router(
 
 api_router.include_router(
     work_order_router,
+)
+
+api_router.include_router(
+    work_order_closeout_router,
 )
 
 api_router.include_router(

@@ -69,3 +69,4 @@ __all__ = [
     "WorkOrderWorkforceAssignment",
     "WorkforceProfile",
 ]
+from app.models.work_order_closeout import WorkOrderCloseout
