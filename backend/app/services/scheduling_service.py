@@ -30,6 +30,7 @@ from app.models.work_order import (
 from app.models.work_order_activity import WorkOrderActivity
 from app.models.workforce_profile import WorkforceProfile
 from app.services.auto_notification_service import AutoNotificationService
+from app.services.auto_audit_service import AutoAuditService
 from app.schemas.scheduling import (
     DispatchWorkOrderSchema,
     ScheduleCalendarItem,
@@ -71,6 +72,7 @@ class SchedulingService:
     ):
         self.db = db
         self.auto_notifications = AutoNotificationService(db)
+        self.auto_audit = AutoAuditService(db)
 
     @staticmethod
     def _normalize_datetime(
@@ -973,6 +975,17 @@ class SchedulingService:
                 actor_user_id=actor_user_id,
             )
 
+            self.auto_audit.work_order_scheduled(
+
+                organization_id=organization_id,
+
+                work_order=work_order,
+
+                actor_user_id=actor_user_id,
+
+            )
+
+
             self.db.commit()
 
         except IntegrityError as exc:
@@ -1127,6 +1140,17 @@ class SchedulingService:
             work_order=work_order,
             actor_user_id=actor_user_id,
         )
+
+        self.auto_audit.work_order_dispatched(
+
+            organization_id=organization_id,
+
+            work_order=work_order,
+
+            actor_user_id=actor_user_id,
+
+        )
+
 
         self.db.commit()
 

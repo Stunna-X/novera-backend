@@ -37,6 +37,7 @@ from app.models.work_order import WorkOrder
 from app.models.work_order_activity import WorkOrderActivity
 from app.repositories.quote import QuoteRepository
 from app.services.auto_notification_service import AutoNotificationService
+from app.services.auto_audit_service import AutoAuditService
 from app.schemas.quote import (
     QuoteActivityListResponse,
     QuoteActivityResponse,
@@ -74,6 +75,7 @@ class QuoteService:
         self.db = db
         self.quotes = QuoteRepository(db)
         self.auto_notifications = AutoNotificationService(db)
+        self.auto_audit = AutoAuditService(db)
 
     @staticmethod
     def _money(
@@ -1804,6 +1806,17 @@ class QuoteService:
                 actor_user_id=actor_user_id,
             )
 
+            self.auto_audit.quote_accepted(
+
+                organization_id=organization_id,
+
+                quote=quote,
+
+                actor_user_id=actor_user_id,
+
+            )
+
+
             self.db.commit()
 
             loaded = self._reload_quote(
@@ -2194,6 +2207,19 @@ class QuoteService:
                 work_order=work_order,
                 actor_user_id=actor_user_id,
             )
+
+            self.auto_audit.quote_converted(
+
+                organization_id=organization_id,
+
+                quote=quote,
+
+                work_order=work_order,
+
+                actor_user_id=actor_user_id,
+
+            )
+
 
             self.db.commit()
 

@@ -33,6 +33,7 @@ from app.repositories.customer import CustomerRepository
 from app.repositories.invoice import InvoiceRepository
 from app.repositories.work_order import WorkOrderRepository
 from app.services.auto_notification_service import AutoNotificationService
+from app.services.auto_audit_service import AutoAuditService
 from app.schemas.invoice import (
     InvoiceCreate,
     InvoiceCurrencySummary,
@@ -74,6 +75,7 @@ class InvoiceService:
         self.customers = CustomerRepository(db)
         self.work_orders = WorkOrderRepository(db)
         self.auto_notifications = AutoNotificationService(db)
+        self.auto_audit = AutoAuditService(db)
 
     @staticmethod
     def _utc_now() -> datetime:
@@ -878,6 +880,19 @@ class InvoiceService:
                 },
             )
 
+            self.auto_audit.invoice_created(
+
+                organization_id=organization_id,
+
+                invoice=created,
+
+                actor_user_id=actor_user_id,
+
+                source="work_order",
+
+            )
+
+
             self.db.commit()
 
             loaded = self._reload_invoice(
@@ -1154,6 +1169,19 @@ class InvoiceService:
                     ),
                 },
             )
+
+            self.auto_audit.invoice_created(
+
+                organization_id=organization_id,
+
+                invoice=created,
+
+                actor_user_id=actor_user_id,
+
+                source="closeout",
+
+            )
+
 
             self.db.commit()
 
@@ -1960,6 +1988,17 @@ class InvoiceService:
                 actor_user_id=actor_user_id,
             )
 
+            self.auto_audit.invoice_issued(
+
+                organization_id=organization_id,
+
+                invoice=invoice,
+
+                actor_user_id=actor_user_id,
+
+            )
+
+
             self.db.commit()
 
             loaded = self._reload_invoice(
@@ -2091,6 +2130,21 @@ class InvoiceService:
                 actor_user_id=actor_user_id,
             )
 
+            self.auto_audit.invoice_payment_recorded(
+
+                organization_id=organization_id,
+
+                invoice=invoice,
+
+                payment=payment,
+
+                actor_user_id=actor_user_id,
+
+                previous_status=previous_status,
+
+            )
+
+
             self.db.commit()
 
             loaded = self._reload_invoice(
@@ -2198,6 +2252,21 @@ class InvoiceService:
                     ),
                 },
             )
+
+            self.auto_audit.invoice_payment_reversed(
+
+                organization_id=organization_id,
+
+                invoice=invoice,
+
+                payment=payment,
+
+                actor_user_id=actor_user_id,
+
+                previous_status=previous_status,
+
+            )
+
 
             self.db.commit()
 

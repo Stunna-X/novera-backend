@@ -34,6 +34,7 @@ from app.repositories.work_order_checklist import (
     WorkOrderChecklistRepository,
 )
 from app.services.auto_notification_service import AutoNotificationService
+from app.services.auto_audit_service import AutoAuditService
 from app.schemas.work_order import (
     ChangeWorkOrderStatusSchema,
     CreateWorkOrderSchema,
@@ -89,6 +90,7 @@ class WorkOrderService:
         self.activities = WorkOrderActivityRepository(db)
         self.checklist = WorkOrderChecklistRepository(db)
         self.auto_notifications = AutoNotificationService(db)
+        self.auto_audit = AutoAuditService(db)
 
     @staticmethod
     def _build_response(
@@ -833,6 +835,19 @@ class WorkOrderService:
                 work_order=updated,
                 actor_user_id=actor_user_id,
             )
+
+        self.auto_audit.work_order_status_changed(
+
+            organization_id=organization_id,
+
+            work_order=updated,
+
+            actor_user_id=actor_user_id,
+
+            previous_status=previous_status,
+
+        )
+
 
         self.db.commit()
 

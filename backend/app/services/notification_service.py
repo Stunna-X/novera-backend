@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.models.notification import Notification
 from app.repositories.notification import NotificationRepository
+from app.services.auto_audit_service import AutoAuditService
 from app.schemas.notification import (
     CreateNotificationSchema,
     NotificationBulkUpdateResponse,
@@ -35,6 +36,7 @@ class NotificationService:
     ) -> None:
         self.db = db
         self.repository = NotificationRepository(db)
+        self.auto_audit = AutoAuditService(db)
 
     def create_notification(
         self,
@@ -72,6 +74,12 @@ class NotificationService:
         )
 
         self.repository.create(notification)
+        self.auto_audit.notification_created(
+            organization_id=organization_id,
+            notification=notification,
+            actor_user_id=actor_user_id,
+        )
+
         self.db.commit()
         self.db.refresh(notification)
 
