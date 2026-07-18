@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.membership import Membership
 from app.schemas.audit_log import AuditLogCreate
 from app.services.audit_log_service import AuditLogService
 
@@ -53,6 +54,32 @@ class AutoAuditService:
 
         return str(value)
 
+    def _actor_membership_id(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        actor_user_id: uuid.UUID | None,
+    ) -> uuid.UUID | None:
+        """
+        Resolve the actor's organization membership ID.
+
+        Automatic audit events usually receive only actor_user_id
+        from business services. This lookup enriches the audit log
+        with the matching membership for the organization.
+        """
+
+        if actor_user_id is None:
+            return None
+
+        return (
+            self.db.query(Membership.id)
+            .filter(
+                Membership.organization_id == organization_id,
+                Membership.user_id == actor_user_id,
+            )
+            .scalar()
+        )
+
     def _record(
         self,
         *,
@@ -72,6 +99,10 @@ class AutoAuditService:
             organization_id=organization_id,
             payload=AuditLogCreate(
                 actor_user_id=actor_user_id,
+                actor_membership_id=self._actor_membership_id(
+                    organization_id=organization_id,
+                    actor_user_id=actor_user_id,
+                ),
                 action=action,
                 entity_type=entity_type,
                 entity_id=entity_id,
