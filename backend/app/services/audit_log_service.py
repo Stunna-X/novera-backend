@@ -4,6 +4,9 @@ Audit log service.
 
 from __future__ import annotations
 
+import csv
+import io
+import json
 import uuid
 from datetime import datetime
 
@@ -223,6 +226,174 @@ class AuditLogService:
             skip=skip,
             limit=limit,
         )
+
+    @staticmethod
+    def _csv_value(value) -> str:
+        """
+        Convert audit values into CSV-safe strings.
+        """
+
+        if value is None:
+            return ""
+
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+
+        return str(value)
+
+    def export_audit_logs_csv(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        skip: int = 0,
+        limit: int = 10000,
+        action: str | None = None,
+        entity_type: str | None = None,
+        entity_id: uuid.UUID | None = None,
+        actor_user_id: uuid.UUID | None = None,
+        status_filter: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> str:
+        """
+        Export filtered organization audit logs as CSV.
+        """
+
+        if (
+            date_from is not None
+            and date_to is not None
+            and date_from > date_to
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="date_from cannot be after date_to.",
+            )
+
+        normalized_action = (
+            action.strip().lower()
+            if action
+            else None
+        )
+
+        normalized_entity_type = (
+            entity_type.strip().lower()
+            if entity_type
+            else None
+        )
+
+        items = self.audit_logs.list_for_organization(
+            organization_id=organization_id,
+            skip=skip,
+            limit=limit,
+            action=normalized_action,
+            entity_type=normalized_entity_type,
+            entity_id=entity_id,
+            actor_user_id=actor_user_id,
+            status_filter=status_filter,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        output = io.StringIO()
+
+        fieldnames = [
+            "id",
+            "created_at",
+            "updated_at",
+            "organization_id",
+            "actor_user_id",
+            "actor_membership_id",
+            "actor_first_name",
+            "actor_last_name",
+            "actor_email",
+            "action",
+            "entity_type",
+            "entity_id",
+            "summary",
+            "status",
+            "request_method",
+            "request_path",
+            "ip_address",
+            "user_agent",
+            "details_json",
+        ]
+
+        writer = csv.DictWriter(
+            output,
+            fieldnames=fieldnames,
+            extrasaction="ignore",
+        )
+
+        writer.writeheader()
+
+        for item in items:
+            actor = item.actor
+
+            writer.writerow(
+                {
+                    "id": self._csv_value(item.id),
+                    "created_at": self._csv_value(
+                        item.created_at
+                    ),
+                    "updated_at": self._csv_value(
+                        item.updated_at
+                    ),
+                    "organization_id": self._csv_value(
+                        item.organization_id
+                    ),
+                    "actor_user_id": self._csv_value(
+                        item.actor_user_id
+                    ),
+                    "actor_membership_id": self._csv_value(
+                        item.actor_membership_id
+                    ),
+                    "actor_first_name": (
+                        actor.first_name
+                        if actor is not None
+                        else ""
+                    ),
+                    "actor_last_name": (
+                        actor.last_name
+                        if actor is not None
+                        else ""
+                    ),
+                    "actor_email": (
+                        actor.email
+                        if actor is not None
+                        else ""
+                    ),
+                    "action": self._csv_value(item.action),
+                    "entity_type": self._csv_value(
+                        item.entity_type
+                    ),
+                    "entity_id": self._csv_value(
+                        item.entity_id
+                    ),
+                    "summary": self._csv_value(item.summary),
+                    "status": self._csv_value(item.status),
+                    "request_method": self._csv_value(
+                        item.request_method
+                    ),
+                    "request_path": self._csv_value(
+                        item.request_path
+                    ),
+                    "ip_address": self._csv_value(
+                        item.ip_address
+                    ),
+                    "user_agent": self._csv_value(
+                        item.user_agent
+                    ),
+                    "details_json": json.dumps(
+                        item.details or {},
+                        default=str,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                }
+            )
+
+        return output.getvalue()
+
 
     def get_audit_log(
         self,
