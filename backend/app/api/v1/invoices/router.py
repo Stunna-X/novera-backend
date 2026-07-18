@@ -16,6 +16,7 @@ from fastapi import (
     Depends,
     Query,
 )
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -39,6 +40,7 @@ from app.schemas.invoice import (
     InvoiceUpdate,
     InvoiceVoidRequest,
 )
+from app.services.document_pdf_service import DocumentPDFService
 from app.services.invoice_service import InvoiceService
 
 
@@ -234,6 +236,43 @@ def get_invoice(
         organization_id=context.organization.id,
         invoice_id=invoice_id,
         include_inactive=include_inactive,
+    )
+
+
+@router.get(
+    "/invoices/{invoice_id}/pdf",
+    summary="Download invoice PDF",
+)
+def download_invoice_pdf(
+    invoice_id: uuid.UUID,
+    include_inactive: bool = Query(
+        default=False,
+    ),
+    context: OrganizationContext = Depends(
+        require_permission("finance.invoices.read")
+    ),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Download one organization-scoped invoice as a PDF.
+    """
+
+    service = DocumentPDFService(db)
+
+    pdf_bytes, filename = service.build_invoice_pdf(
+        organization_id=context.organization.id,
+        invoice_id=invoice_id,
+        include_inactive=include_inactive,
+    )
+
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"'
+            ),
+        },
     )
 
 

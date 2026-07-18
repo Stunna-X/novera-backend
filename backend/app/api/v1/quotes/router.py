@@ -16,6 +16,7 @@ from fastapi import (
     Query,
     status,
 )
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -40,6 +41,7 @@ from app.schemas.quote import (
     QuoteSummaryResponse,
     QuoteUpdate,
 )
+from app.services.document_pdf_service import DocumentPDFService
 from app.services.quote_service import QuoteService
 
 
@@ -161,6 +163,43 @@ def get_quote_summary(
     return service.get_summary(
         organization_id=context.organization.id,
         include_inactive=include_inactive,
+    )
+
+
+@router.get(
+    "/{quote_id}/pdf",
+    summary="Download quote PDF",
+)
+def download_quote_pdf(
+    quote_id: uuid.UUID,
+    include_inactive: bool = Query(
+        default=False,
+    ),
+    context: OrganizationContext = Depends(
+        require_permission("quotes.read")
+    ),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Download one organization quote or estimate as a PDF.
+    """
+
+    service = DocumentPDFService(db)
+
+    pdf_bytes, filename = service.build_quote_pdf(
+        organization_id=context.organization.id,
+        quote_id=quote_id,
+        include_inactive=include_inactive,
+    )
+
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"'
+            ),
+        },
     )
 
 
