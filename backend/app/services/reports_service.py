@@ -7,6 +7,8 @@ and quote conversion reports.
 
 from __future__ import annotations
 
+import csv
+import io
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -389,6 +391,400 @@ class ReportsService:
                 date_to=date_to,
             ),
         )
+
+    @staticmethod
+    def _csv_value(value) -> str:
+        """
+        Convert report values into CSV-safe strings.
+        """
+
+        if value is None:
+            return ""
+
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+
+        return str(value)
+
+    @staticmethod
+    def _new_csv_writer():
+        """
+        Create a generic report CSV writer.
+        """
+
+        output = io.StringIO()
+
+        fieldnames = [
+            "section",
+            "metric",
+            "key",
+            "label",
+            "count",
+            "currency",
+            "amount",
+            "payment_method",
+            "value",
+        ]
+
+        writer = csv.DictWriter(
+            output,
+            fieldnames=fieldnames,
+            extrasaction="ignore",
+        )
+
+        writer.writeheader()
+
+        return output, writer
+
+    def _write_report_metadata(
+        self,
+        *,
+        writer,
+        report_type: str,
+        report,
+    ) -> None:
+        """
+        Write common report metadata rows.
+        """
+
+        metadata = {
+            "report_type": report_type,
+            "organization_id": report.organization_id,
+            "generated_at": report.generated_at,
+            "date_from": report.date_from,
+            "date_to": report.date_to,
+        }
+
+        for key, value in metadata.items():
+            writer.writerow(
+                {
+                    "section": "metadata",
+                    "metric": key,
+                    "value": self._csv_value(value),
+                }
+            )
+
+    def _write_count_items(
+        self,
+        *,
+        writer,
+        section: str,
+        items,
+    ) -> None:
+        """
+        Write grouped count rows.
+        """
+
+        for item in items:
+            writer.writerow(
+                {
+                    "section": section,
+                    "metric": "count",
+                    "key": item.key,
+                    "label": item.label,
+                    "count": item.count,
+                }
+            )
+
+    def _write_money_items(
+        self,
+        *,
+        writer,
+        section: str,
+        metric: str,
+        items,
+    ) -> None:
+        """
+        Write currency money rows.
+        """
+
+        for item in items:
+            writer.writerow(
+                {
+                    "section": section,
+                    "metric": metric,
+                    "currency": item.currency,
+                    "amount": self._csv_value(item.amount),
+                }
+            )
+
+    def export_operations_report_csv(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> str:
+        """
+        Export the operations report as CSV.
+        """
+
+        report = self.get_operations_report(
+            organization_id=organization_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        output, writer = self._new_csv_writer()
+
+        self._write_report_metadata(
+            writer=writer,
+            report_type="operations",
+            report=report,
+        )
+
+        self._write_count_items(
+            writer=writer,
+            section="work_order_status_counts",
+            items=report.work_order_status_counts,
+        )
+
+        self._write_count_items(
+            writer=writer,
+            section="work_order_priority_counts",
+            items=report.work_order_priority_counts,
+        )
+
+        self._write_count_items(
+            writer=writer,
+            section="closeout_status_counts",
+            items=report.closeout_status_counts,
+        )
+
+        summary_metrics = {
+            "scheduled_work_orders": report.scheduled_work_orders,
+            "completed_work_orders": report.completed_work_orders,
+            "cancelled_work_orders": report.cancelled_work_orders,
+            "overdue_scheduled_work_orders": (
+                report.overdue_scheduled_work_orders
+            ),
+            "invoice_ready_closeouts": report.invoice_ready_closeouts,
+            "active_workforce_assignments": (
+                report.active_workforce_assignments
+            ),
+            "active_asset_assignments": (
+                report.active_asset_assignments
+            ),
+        }
+
+        for metric, value in summary_metrics.items():
+            writer.writerow(
+                {
+                    "section": "summary",
+                    "metric": metric,
+                    "count": value,
+                    "value": self._csv_value(value),
+                }
+            )
+
+        return output.getvalue()
+
+    def export_finance_report_csv(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> str:
+        """
+        Export the finance report as CSV.
+        """
+
+        report = self.get_finance_report(
+            organization_id=organization_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        output, writer = self._new_csv_writer()
+
+        self._write_report_metadata(
+            writer=writer,
+            report_type="finance",
+            report=report,
+        )
+
+        self._write_count_items(
+            writer=writer,
+            section="invoice_status_counts",
+            items=report.invoice_status_counts,
+        )
+
+        self._write_money_items(
+            writer=writer,
+            section="total_invoiced",
+            metric="amount",
+            items=report.total_invoiced,
+        )
+
+        self._write_money_items(
+            writer=writer,
+            section="total_paid",
+            metric="amount",
+            items=report.total_paid,
+        )
+
+        self._write_money_items(
+            writer=writer,
+            section="total_outstanding",
+            metric="amount",
+            items=report.total_outstanding,
+        )
+
+        for item in report.payment_method_totals:
+            writer.writerow(
+                {
+                    "section": "payment_method_totals",
+                    "metric": "amount",
+                    "payment_method": item.payment_method,
+                    "currency": item.currency,
+                    "amount": self._csv_value(item.amount),
+                }
+            )
+
+        return output.getvalue()
+
+    def export_work_order_performance_report_csv(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> str:
+        """
+        Export the work-order performance report as CSV.
+        """
+
+        report = self.get_work_order_performance_report(
+            organization_id=organization_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        output, writer = self._new_csv_writer()
+
+        self._write_report_metadata(
+            writer=writer,
+            report_type="work_orders",
+            report=report,
+        )
+
+        summary_metrics = {
+            "total_work_orders": report.total_work_orders,
+            "completed_work_orders": report.completed_work_orders,
+            "cancelled_work_orders": report.cancelled_work_orders,
+            "completion_rate_percent": (
+                report.completion_rate_percent
+            ),
+            "average_completion_hours": (
+                report.average_completion_hours
+            ),
+        }
+
+        for metric, value in summary_metrics.items():
+            writer.writerow(
+                {
+                    "section": "summary",
+                    "metric": metric,
+                    "value": self._csv_value(value),
+                }
+            )
+
+        self._write_count_items(
+            writer=writer,
+            section="status_counts",
+            items=report.status_counts,
+        )
+
+        self._write_count_items(
+            writer=writer,
+            section="priority_counts",
+            items=report.priority_counts,
+        )
+
+        self._write_count_items(
+            writer=writer,
+            section="job_type_counts",
+            items=report.job_type_counts,
+        )
+
+        return output.getvalue()
+
+    def export_quote_conversion_report_csv(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> str:
+        """
+        Export the quote conversion report as CSV.
+        """
+
+        report = self.get_quote_conversion_report(
+            organization_id=organization_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        output, writer = self._new_csv_writer()
+
+        self._write_report_metadata(
+            writer=writer,
+            report_type="quotes",
+            report=report,
+        )
+
+        summary_metrics = {
+            "total_quotes": report.total_quotes,
+            "sent_quotes": report.sent_quotes,
+            "accepted_quotes": report.accepted_quotes,
+            "rejected_quotes": report.rejected_quotes,
+            "expired_quotes": report.expired_quotes,
+            "converted_quotes": report.converted_quotes,
+            "conversion_rate_percent": (
+                report.conversion_rate_percent
+            ),
+        }
+
+        for metric, value in summary_metrics.items():
+            writer.writerow(
+                {
+                    "section": "summary",
+                    "metric": metric,
+                    "value": self._csv_value(value),
+                }
+            )
+
+        self._write_count_items(
+            writer=writer,
+            section="quote_status_counts",
+            items=report.quote_status_counts,
+        )
+
+        self._write_money_items(
+            writer=writer,
+            section="total_quote_value",
+            metric="amount",
+            items=report.total_quote_value,
+        )
+
+        self._write_money_items(
+            writer=writer,
+            section="accepted_quote_value",
+            metric="amount",
+            items=report.accepted_quote_value,
+        )
+
+        self._write_money_items(
+            writer=writer,
+            section="converted_quote_value",
+            metric="amount",
+            items=report.converted_quote_value,
+        )
+
+        return output.getvalue()
+
 
     def _work_order_count(
         self,

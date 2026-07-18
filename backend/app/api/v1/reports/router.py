@@ -7,7 +7,7 @@ work-order performance, and quote conversion reports.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import (
     APIRouter,
@@ -15,6 +15,7 @@ from fastapi import (
     HTTPException,
     Query,
 )
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -184,6 +185,188 @@ def get_quote_conversion_report(
         organization_id=context.organization.id,
         date_from=date_from,
         date_to=date_to,
+    )
+
+
+@router.get(
+    "/operations/export",
+    summary="Export operations report as CSV",
+)
+def export_operations_report(
+    date_from: date | None = Query(
+        default=None,
+        description="Optional inclusive report start date.",
+    ),
+    date_to: date | None = Query(
+        default=None,
+        description="Optional inclusive report end date.",
+    ),
+    context: OrganizationContext = Depends(
+        require_permission("reports.read")
+    ),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Export the operations report as a CSV file.
+    """
+
+    _validate_date_range(
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    service = ReportsService(db)
+
+    return _csv_response(
+        csv_content=service.export_operations_report_csv(
+            organization_id=context.organization.id,
+            date_from=date_from,
+            date_to=date_to,
+        ),
+        report_name="operations",
+    )
+
+
+@router.get(
+    "/finance/export",
+    summary="Export finance report as CSV",
+)
+def export_finance_report(
+    date_from: date | None = Query(
+        default=None,
+        description="Optional inclusive report start date.",
+    ),
+    date_to: date | None = Query(
+        default=None,
+        description="Optional inclusive report end date.",
+    ),
+    context: OrganizationContext = Depends(
+        require_permission("reports.read")
+    ),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Export the finance report as a CSV file.
+    """
+
+    _validate_date_range(
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    service = ReportsService(db)
+
+    return _csv_response(
+        csv_content=service.export_finance_report_csv(
+            organization_id=context.organization.id,
+            date_from=date_from,
+            date_to=date_to,
+        ),
+        report_name="finance",
+    )
+
+
+@router.get(
+    "/work-orders/export",
+    summary="Export work-order performance report as CSV",
+)
+def export_work_order_performance_report(
+    date_from: date | None = Query(
+        default=None,
+        description="Optional inclusive report start date.",
+    ),
+    date_to: date | None = Query(
+        default=None,
+        description="Optional inclusive report end date.",
+    ),
+    context: OrganizationContext = Depends(
+        require_permission("reports.read")
+    ),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Export the work-order performance report as a CSV file.
+    """
+
+    _validate_date_range(
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    service = ReportsService(db)
+
+    return _csv_response(
+        csv_content=service.export_work_order_performance_report_csv(
+            organization_id=context.organization.id,
+            date_from=date_from,
+            date_to=date_to,
+        ),
+        report_name="work-orders",
+    )
+
+
+@router.get(
+    "/quotes/export",
+    summary="Export quote conversion report as CSV",
+)
+def export_quote_conversion_report(
+    date_from: date | None = Query(
+        default=None,
+        description="Optional inclusive report start date.",
+    ),
+    date_to: date | None = Query(
+        default=None,
+        description="Optional inclusive report end date.",
+    ),
+    context: OrganizationContext = Depends(
+        require_permission("reports.read")
+    ),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """
+    Export the quote conversion report as a CSV file.
+    """
+
+    _validate_date_range(
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    service = ReportsService(db)
+
+    return _csv_response(
+        csv_content=service.export_quote_conversion_report_csv(
+            organization_id=context.organization.id,
+            date_from=date_from,
+            date_to=date_to,
+        ),
+        report_name="quotes",
+    )
+
+
+def _csv_response(
+    *,
+    csv_content: str,
+    report_name: str,
+) -> StreamingResponse:
+    """
+    Return report CSV content as a downloadable response.
+    """
+
+    timestamp = datetime.utcnow().strftime(
+        "%Y%m%d-%H%M%S"
+    )
+
+    filename = f"novera-{report_name}-report-{timestamp}.csv"
+
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"'
+            ),
+        },
     )
 
 
