@@ -7,6 +7,9 @@ Every Version 1 endpoint is registered here.
 from fastapi import APIRouter
 
 from app.api.v1.assets.router import router as asset_router
+from app.api.v1.audit_logs.router import (
+    router as audit_log_router,
+)
 from app.api.v1.auth.router import router as auth_router
 from app.api.v1.customer_sites.router import (
     router as customer_site_router,
@@ -87,6 +90,10 @@ api_router.include_router(
 
 api_router.include_router(
     asset_router,
+)
+
+api_router.include_router(
+    audit_log_router,
 )
 
 api_router.include_router(
