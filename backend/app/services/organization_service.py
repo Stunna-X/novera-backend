@@ -29,6 +29,21 @@ from app.utils.slug import slugify
 
 OWNER_ROLE_NAME = "Owner"
 
+DOCUMENT_SETTING_FIELDS = [
+    "business_address",
+    "tax_identification_number",
+    "vat_number",
+    "bank_name",
+    "bank_account_name",
+    "bank_account_number",
+    "bank_routing_number",
+    "payment_instructions",
+    "default_invoice_terms",
+    "default_quote_terms",
+    "invoice_footer",
+    "quote_footer",
+]
+
 
 class OrganizationService:
     """
@@ -46,6 +61,21 @@ class OrganizationService:
         self.db = db
         self.organizations = OrganizationRepository(db)
         self.roles = RoleRepository(db)
+
+    @staticmethod
+    def _clean_optional_text(
+        value: str | None,
+    ) -> str | None:
+        """
+        Normalize optional organization document-setting text.
+        """
+
+        if value is None:
+            return None
+
+        cleaned = value.strip()
+
+        return cleaned or None
 
     def _generate_unique_slug(
         self,
@@ -124,26 +154,14 @@ class OrganizationService:
         in one database transaction.
         """
 
-        organization_name = (
-            payload.name.strip()
-        )
-
-        if not organization_name:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    "Organization name cannot be empty."
-                ),
-            )
+        organization_name = payload.name.strip()
 
         slug = self._generate_unique_slug(
             organization_name
         )
 
         try:
-            owner_role = (
-                self._get_or_create_owner_role()
-            )
+            owner_role = self._get_or_create_owner_role()
 
             organization = Organization(
                 name=organization_name,
@@ -164,19 +182,51 @@ class OrganizationService:
                     if payload.country
                     else None
                 ),
-                timezone=(
-                    payload.timezone.strip()
-                ),
+                timezone=payload.timezone.strip(),
                 logo_url=(
                     payload.logo_url.strip()
                     if payload.logo_url
                     else None
                 ),
+                business_address=self._clean_optional_text(
+                    payload.business_address
+                ),
+                tax_identification_number=self._clean_optional_text(
+                    payload.tax_identification_number
+                ),
+                vat_number=self._clean_optional_text(
+                    payload.vat_number
+                ),
+                bank_name=self._clean_optional_text(
+                    payload.bank_name
+                ),
+                bank_account_name=self._clean_optional_text(
+                    payload.bank_account_name
+                ),
+                bank_account_number=self._clean_optional_text(
+                    payload.bank_account_number
+                ),
+                bank_routing_number=self._clean_optional_text(
+                    payload.bank_routing_number
+                ),
+                payment_instructions=self._clean_optional_text(
+                    payload.payment_instructions
+                ),
+                default_invoice_terms=self._clean_optional_text(
+                    payload.default_invoice_terms
+                ),
+                default_quote_terms=self._clean_optional_text(
+                    payload.default_quote_terms
+                ),
+                invoice_footer=self._clean_optional_text(
+                    payload.invoice_footer
+                ),
+                quote_footer=self._clean_optional_text(
+                    payload.quote_footer
+                ),
             )
 
-            self.db.add(
-                organization
-            )
+            self.db.add(organization)
             self.db.flush()
 
             membership = Membership(
@@ -185,14 +235,9 @@ class OrganizationService:
                 role_id=owner_role.id,
             )
 
-            self.db.add(
-                membership
-            )
-
+            self.db.add(membership)
             self.db.commit()
-            self.db.refresh(
-                organization
-            )
+            self.db.refresh(organization)
 
             return organization
 
@@ -202,8 +247,8 @@ class OrganizationService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "An organization with the generated "
-                    "slug already exists."
+                    "An organization with the generated slug "
+                    "already exists."
                 ),
             ) from exc
 
@@ -245,11 +290,7 @@ class OrganizationService:
         """
         Update organization details.
 
-        Authorization is handled by the
-        organizations.update permission dependency.
-
-        The organization slug remains unchanged when
-        the organization name changes.
+        The slug remains stable when the organization name changes.
         """
 
         update_data = payload.model_dump(
@@ -257,32 +298,13 @@ class OrganizationService:
         )
 
         if "name" in update_data:
-            organization_name = (
-                update_data["name"].strip()
-            )
-
-            if not organization_name:
-                raise HTTPException(
-                    status_code=(
-                        status.HTTP_422_UNPROCESSABLE_ENTITY
-                    ),
-                    detail=(
-                        "Organization name cannot be empty."
-                    ),
-                )
-
-            organization.name = (
-                organization_name
-            )
+            organization.name = update_data["name"].strip()
 
         if "industry" in update_data:
-            organization.industry = (
-                update_data["industry"]
-            )
+            organization.industry = update_data["industry"]
 
         if "email" in update_data:
             email = update_data["email"]
-
             organization.email = (
                 str(email).lower()
                 if email
@@ -291,7 +313,6 @@ class OrganizationService:
 
         if "phone" in update_data:
             phone = update_data["phone"]
-
             organization.phone = (
                 phone.strip()
                 if phone
@@ -300,7 +321,6 @@ class OrganizationService:
 
         if "country" in update_data:
             country = update_data["country"]
-
             organization.country = (
                 country.strip()
                 if country
@@ -308,37 +328,31 @@ class OrganizationService:
             )
 
         if "timezone" in update_data:
-            timezone = (
-                update_data["timezone"].strip()
-            )
-
-            if not timezone:
-                raise HTTPException(
-                    status_code=(
-                        status.HTTP_422_UNPROCESSABLE_ENTITY
-                    ),
-                    detail=(
-                        "Timezone cannot be empty."
-                    ),
-                )
-
-            organization.timezone = (
-                timezone
-            )
+            timezone = update_data["timezone"]
+            organization.timezone = timezone.strip()
 
         if "logo_url" in update_data:
             logo_url = update_data["logo_url"]
-
             organization.logo_url = (
                 logo_url.strip()
                 if logo_url
                 else None
             )
 
-        return (
-            self.organizations.update_organization(
-                organization
+        for field_name in DOCUMENT_SETTING_FIELDS:
+            if field_name not in update_data:
+                continue
+
+            setattr(
+                organization,
+                field_name,
+                self._clean_optional_text(
+                    update_data[field_name]
+                ),
             )
+
+        return self.organizations.update_organization(
+            organization
         )
 
     def deactivate_organization(

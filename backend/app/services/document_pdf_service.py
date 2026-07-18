@@ -164,10 +164,27 @@ class DocumentPDFService:
                 ]
             )
 
+        self._append_payment_details(
+            story=story,
+            organization=invoice.organization,
+        )
+
         self._append_notes_terms(
             story=story,
             notes=invoice.notes,
-            terms=invoice.terms,
+            terms=(
+                invoice.terms
+                or getattr(
+                    invoice.organization,
+                    "default_invoice_terms",
+                    None,
+                )
+            ),
+            footer=getattr(
+                invoice.organization,
+                "invoice_footer",
+                None,
+            ),
         )
 
         return (
@@ -265,10 +282,27 @@ class DocumentPDFService:
                 ]
             )
 
+        self._append_payment_details(
+            story=story,
+            organization=quote.organization,
+        )
+
         self._append_notes_terms(
             story=story,
             notes=quote.notes,
-            terms=quote.terms,
+            terms=(
+                quote.terms
+                or getattr(
+                    quote.organization,
+                    "default_quote_terms",
+                    None,
+                )
+            ),
+            footer=getattr(
+                quote.organization,
+                "quote_footer",
+                None,
+            ),
         )
 
         return (
@@ -407,6 +441,7 @@ class DocumentPDFService:
         ]
 
         for value in [
+            getattr(organization, "business_address", None),
             getattr(organization, "email", None),
             getattr(organization, "phone", None),
             getattr(organization, "country", None),
@@ -415,6 +450,27 @@ class DocumentPDFService:
                 organization_lines.append(
                     self._escape(value)
                 )
+
+        tax_id = getattr(
+            organization,
+            "tax_identification_number",
+            None,
+        )
+        vat_number = getattr(
+            organization,
+            "vat_number",
+            None,
+        )
+
+        if tax_id:
+            organization_lines.append(
+                f"Tax ID: {self._escape(tax_id)}"
+            )
+
+        if vat_number:
+            organization_lines.append(
+                f"VAT: {self._escape(vat_number)}"
+            )
 
         customer_lines = [
             f"<b>{self._escape(customer_name)}</b>",
@@ -688,12 +744,68 @@ class DocumentPDFService:
 
         return table
 
+    def _append_payment_details(
+        self,
+        *,
+        story: list,
+        organization,
+    ) -> None:
+        """
+        Add organization bank/payment details to the document.
+        """
+
+        rows: list[tuple[str, str]] = []
+
+        for label, attribute in [
+            ("Bank", "bank_name"),
+            ("Account Name", "bank_account_name"),
+            ("Account Number", "bank_account_number"),
+            ("Routing / Sort Code", "bank_routing_number"),
+        ]:
+            value = getattr(
+                organization,
+                attribute,
+                None,
+            )
+
+            if value:
+                rows.append(
+                    (
+                        label,
+                        str(value),
+                    )
+                )
+
+        payment_instructions = getattr(
+            organization,
+            "payment_instructions",
+            None,
+        )
+
+        if not rows and not payment_instructions:
+            return
+
+        story.append(
+            self._section("Payment Details")
+        )
+
+        if rows:
+            story.append(
+                self._details_table(rows)
+            )
+
+        if payment_instructions:
+            story.append(
+                self._paragraph(payment_instructions)
+            )
+
     def _append_notes_terms(
         self,
         *,
         story: list,
         notes: str | None,
         terms: str | None,
+        footer: str | None = None,
     ) -> None:
         if notes:
             story.extend(
@@ -708,6 +820,14 @@ class DocumentPDFService:
                 [
                     self._section("Terms"),
                     self._paragraph(terms),
+                ]
+            )
+
+        if footer:
+            story.extend(
+                [
+                    self._section("Footer"),
+                    self._paragraph(footer),
                 ]
             )
 

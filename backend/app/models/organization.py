@@ -7,7 +7,7 @@ Every business resource in the platform belongs to an organization.
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Enum, Index, String
+from sqlalchemy import Boolean, Enum, Index, String, Text, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import BaseModel
@@ -65,6 +65,66 @@ class Organization(BaseModel):
 
     logo_url: Mapped[str | None] = mapped_column(
         String(500),
+        nullable=True,
+    )
+
+    business_address: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    tax_identification_number: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    vat_number: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    bank_name: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+    )
+
+    bank_account_name: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+    )
+
+    bank_account_number: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    bank_routing_number: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    payment_instructions: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    default_invoice_terms: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    default_quote_terms: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    invoice_footer: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    quote_footer: Mapped[str | None] = mapped_column(
+        Text,
         nullable=True,
     )
 
