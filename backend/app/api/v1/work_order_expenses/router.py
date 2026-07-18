@@ -58,7 +58,7 @@ def create_work_order_expense(
     work_order_id: uuid.UUID,
     payload: WorkOrderExpenseCreate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("expenses.create")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderExpenseResponse:
@@ -118,7 +118,7 @@ def list_work_order_expenses(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("expenses.read")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderExpenseListResponse:
@@ -161,7 +161,7 @@ def get_work_order_expense_summary(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("expenses.read")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderExpenseSummaryResponse:
@@ -193,7 +193,7 @@ def get_work_order_expense(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("expenses.read")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderExpenseResponse:
@@ -221,7 +221,7 @@ def update_work_order_expense(
     expense_id: uuid.UUID,
     payload: WorkOrderExpenseUpdate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("expenses.update")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderExpenseResponse:
@@ -250,7 +250,7 @@ def change_work_order_expense_status(
     expense_id: uuid.UUID,
     payload: WorkOrderExpenseStatusChange,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("expenses.review")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderExpenseResponse:
@@ -278,7 +278,7 @@ def deactivate_work_order_expense(
     work_order_id: uuid.UUID,
     expense_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("expenses.delete")
     ),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -309,7 +309,7 @@ def reactivate_work_order_expense(
     work_order_id: uuid.UUID,
     expense_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("expenses.update")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderExpenseResponse:

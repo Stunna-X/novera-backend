@@ -58,7 +58,7 @@ def create_work_order_invoice(
     work_order_id: uuid.UUID,
     payload: InvoiceCreate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.create")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -87,7 +87,7 @@ def create_work_order_invoice_from_closeout(
     work_order_id: uuid.UUID,
     payload: InvoiceFromCloseoutCreate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.create")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -147,7 +147,7 @@ def list_invoices(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("finance.invoices.read")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceListResponse:
@@ -189,7 +189,7 @@ def get_invoice_summary(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("finance.invoices.read")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceSummaryResponse:
@@ -219,7 +219,7 @@ def get_invoice(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("finance.invoices.read")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -246,7 +246,7 @@ def update_invoice(
     invoice_id: uuid.UUID,
     payload: InvoiceUpdate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.update")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -274,7 +274,7 @@ def add_manual_invoice_line(
     invoice_id: uuid.UUID,
     payload: InvoiceLineItemCreate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.update")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -302,7 +302,7 @@ def add_expense_invoice_line(
     invoice_id: uuid.UUID,
     payload: InvoiceExpenseLineCreate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.update")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -330,7 +330,7 @@ def update_invoice_line(
     line_item_id: uuid.UUID,
     payload: InvoiceLineItemUpdate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.update")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -359,7 +359,7 @@ def remove_invoice_line(
     invoice_id: uuid.UUID,
     line_item_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.update")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -387,7 +387,7 @@ def issue_invoice(
     invoice_id: uuid.UUID,
     payload: InvoiceIssueRequest,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.issue")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -415,7 +415,7 @@ def record_invoice_payment(
     invoice_id: uuid.UUID,
     payload: InvoicePaymentCreate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.payments.record")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -443,7 +443,7 @@ def reverse_invoice_payment(
     payment_id: uuid.UUID,
     payload: InvoicePaymentReverse,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.payments.reverse")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:
@@ -471,7 +471,7 @@ def void_invoice(
     invoice_id: uuid.UUID,
     payload: InvoiceVoidRequest,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("finance.invoices.void")
     ),
     db: Session = Depends(get_db),
 ) -> InvoiceResponse:

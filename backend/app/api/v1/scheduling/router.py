@@ -86,7 +86,7 @@ def list_schedule_calendar(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("scheduling.read")
     ),
     db: Session = Depends(get_db),
 ) -> ScheduleCalendarResponse:
@@ -120,7 +120,7 @@ def list_schedule_calendar(
 def check_schedule_conflicts(
     payload: ScheduleConflictCheckSchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("scheduling.read")
     ),
     db: Session = Depends(get_db),
 ) -> ScheduleConflictResponse:
@@ -146,7 +146,7 @@ def schedule_work_order(
     work_order_id: uuid.UUID,
     payload: ScheduleWorkOrderSchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("scheduling.update")
     ),
     db: Session = Depends(get_db),
 ) -> ScheduleWorkOrderResponse:
@@ -174,7 +174,7 @@ def dispatch_work_order(
     work_order_id: uuid.UUID,
     payload: DispatchWorkOrderSchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.status")
+        require_permission("scheduling.dispatch")
     ),
     db: Session = Depends(get_db),
 ) -> ScheduleWorkOrderResponse:

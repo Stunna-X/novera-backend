@@ -48,7 +48,7 @@ def submit_work_order_closeout(
     work_order_id: uuid.UUID,
     payload: SubmitWorkOrderCloseoutSchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("closeouts.create")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderCloseoutResponse:
@@ -72,7 +72,7 @@ def submit_work_order_closeout(
 def get_work_order_closeout(
     work_order_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("closeouts.read")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderCloseoutResponse:
@@ -95,7 +95,7 @@ def update_work_order_closeout(
     work_order_id: uuid.UUID,
     payload: UpdateWorkOrderCloseoutSchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("closeouts.update")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderCloseoutResponse:
@@ -120,7 +120,7 @@ def approve_work_order_closeout(
     work_order_id: uuid.UUID,
     payload: ApproveWorkOrderCloseoutSchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("closeouts.approve")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderCloseoutResponse:
@@ -145,7 +145,7 @@ def reject_work_order_closeout(
     work_order_id: uuid.UUID,
     payload: RejectWorkOrderCloseoutSchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("closeouts.reject")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderCloseoutResponse:
@@ -170,7 +170,7 @@ def mark_work_order_closeout_invoice_ready(
     work_order_id: uuid.UUID,
     payload: MarkCloseoutInvoiceReadySchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("closeouts.invoice_ready")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderCloseoutResponse:

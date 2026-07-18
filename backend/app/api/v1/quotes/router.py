@@ -58,7 +58,7 @@ router = APIRouter(
 def create_quote(
     payload: QuoteCreate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.create")
+        require_permission("quotes.create")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -115,7 +115,7 @@ def list_quotes(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("quotes.read")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteListResponse:
@@ -148,7 +148,7 @@ def get_quote_summary(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("quotes.read")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteSummaryResponse:
@@ -175,7 +175,7 @@ def get_quote(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("quotes.read")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -215,7 +215,7 @@ def list_quote_activities(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("quotes.read")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteActivityListResponse:
@@ -246,7 +246,7 @@ def update_quote(
     quote_id: uuid.UUID,
     payload: QuoteUpdate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("quotes.update")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -274,7 +274,7 @@ def add_quote_line_item(
     quote_id: uuid.UUID,
     payload: QuoteLineItemCreate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("quotes.update")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -302,7 +302,7 @@ def update_quote_line_item(
     line_item_id: uuid.UUID,
     payload: QuoteLineItemUpdate,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("quotes.update")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -330,7 +330,7 @@ def remove_quote_line_item(
     quote_id: uuid.UUID,
     line_item_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("quotes.update")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -357,7 +357,7 @@ def send_quote(
     quote_id: uuid.UUID,
     payload: QuoteLifecycleNote,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("quotes.update")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -384,7 +384,7 @@ def accept_quote(
     quote_id: uuid.UUID,
     payload: QuoteLifecycleNote,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("quotes.respond")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -411,7 +411,7 @@ def reject_quote(
     quote_id: uuid.UUID,
     payload: QuoteRejectRequest,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("quotes.respond")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -438,7 +438,7 @@ def expire_quote(
     quote_id: uuid.UUID,
     payload: QuoteLifecycleNote,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.update")
+        require_permission("quotes.respond")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteResponse:
@@ -467,8 +467,8 @@ def convert_quote_to_work_order(
     payload: QuoteConvertRequest,
     context: OrganizationContext = Depends(
         require_all_permissions(
+            "quotes.convert",
             "work_orders.create",
-            "work_orders.update",
         )
     ),
     db: Session = Depends(get_db),

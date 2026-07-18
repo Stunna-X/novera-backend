@@ -39,7 +39,7 @@ router = APIRouter(
 )
 def get_dashboard_overview(
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("dashboard.read")
     ),
     db: Session = Depends(get_db),
 ) -> DashboardOverviewResponse:
@@ -77,7 +77,7 @@ def get_work_order_dashboard(
         le=50,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("dashboard.read")
     ),
     db: Session = Depends(get_db),
 ) -> DashboardWorkOrdersResponse:
@@ -105,7 +105,7 @@ def get_work_order_dashboard(
 )
 def get_finance_dashboard(
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("dashboard.read")
     ),
     db: Session = Depends(get_db),
 ) -> DashboardFinanceResponse:
@@ -135,7 +135,7 @@ def get_team_dashboard(
         le=100,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("dashboard.read")
     ),
     db: Session = Depends(get_db),
 ) -> DashboardTeamResponse:

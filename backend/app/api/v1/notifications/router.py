@@ -70,7 +70,7 @@ def list_notifications(
         le=100,
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("notifications.read")
     ),
     db: Session = Depends(get_db),
 ) -> NotificationListResponse:
@@ -100,7 +100,7 @@ def list_notifications(
 )
 def get_unread_notification_count(
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("notifications.read")
     ),
     db: Session = Depends(get_db),
 ) -> NotificationUnreadCountResponse:
@@ -125,7 +125,7 @@ def get_unread_notification_count(
 def create_notification(
     payload: CreateNotificationSchema,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("notifications.create")
     ),
     db: Session = Depends(get_db),
 ) -> NotificationResponse:
@@ -152,7 +152,7 @@ def create_notification(
 )
 def mark_all_notifications_as_read(
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("notifications.update")
     ),
     db: Session = Depends(get_db),
 ) -> NotificationBulkUpdateResponse:
@@ -176,7 +176,7 @@ def mark_all_notifications_as_read(
 def mark_notification_as_read(
     notification_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("notifications.update")
     ),
     db: Session = Depends(get_db),
 ) -> NotificationResponse:
@@ -201,7 +201,7 @@ def mark_notification_as_read(
 def archive_notification(
     notification_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("notifications.update")
     ),
     db: Session = Depends(get_db),
 ) -> NotificationResponse:

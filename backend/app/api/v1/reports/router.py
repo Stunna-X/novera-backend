@@ -52,7 +52,7 @@ def get_operations_report(
         description="Optional inclusive report end date.",
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("reports.read")
     ),
     db: Session = Depends(get_db),
 ) -> OperationsReportResponse:
@@ -89,7 +89,7 @@ def get_finance_report(
         description="Optional inclusive report end date.",
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("reports.read")
     ),
     db: Session = Depends(get_db),
 ) -> FinanceReportResponse:
@@ -127,7 +127,7 @@ def get_work_order_performance_report(
         description="Optional inclusive report end date.",
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("reports.read")
     ),
     db: Session = Depends(get_db),
 ) -> WorkOrderPerformanceReportResponse:
@@ -165,7 +165,7 @@ def get_quote_conversion_report(
         description="Optional inclusive report end date.",
     ),
     context: OrganizationContext = Depends(
-        require_permission("work_orders.read")
+        require_permission("reports.read")
     ),
     db: Session = Depends(get_db),
 ) -> QuoteConversionReportResponse:
