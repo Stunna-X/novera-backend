@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.request_context import get_request_audit_context
 from app.models.membership import Membership
 from app.schemas.audit_log import AuditLogCreate
 from app.services.audit_log_service import AuditLogService
@@ -95,6 +96,8 @@ class AutoAuditService:
         Record one audit event without committing.
         """
 
+        request_context = get_request_audit_context()
+
         self.audit_logs.record_event(
             organization_id=organization_id,
             payload=AuditLogCreate(
@@ -108,8 +111,26 @@ class AutoAuditService:
                 entity_id=entity_id,
                 summary=summary,
                 status="success",
-                request_method="SYSTEM",
-                request_path="/system/business-event",
+                request_method=(
+                    request_context.method
+                    if request_context is not None
+                    else "SYSTEM"
+                ),
+                request_path=(
+                    request_context.path
+                    if request_context is not None
+                    else "/system/business-event"
+                ),
+                ip_address=(
+                    request_context.ip_address
+                    if request_context is not None
+                    else None
+                ),
+                user_agent=(
+                    request_context.user_agent
+                    if request_context is not None
+                    else None
+                ),
                 details=details or {},
             ),
             commit=False,
