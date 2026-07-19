@@ -1,4 +1,4 @@
-﻿"""
+"""
 SQLAlchemy model registry.
 
 Importing models here ensures that all database tables are
@@ -9,6 +9,8 @@ from app.models.asset import Asset
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer
 from app.models.customer_site import CustomerSite
+from app.models.document_delivery import DocumentDelivery
+from app.models.email_outbox import EmailOutbox
 from app.models.invoice import (
     Invoice,
     InvoiceLineItem,
@@ -50,6 +52,8 @@ __all__ = [
     "AuditLog",
     "Customer",
     "CustomerSite",
+    "DocumentDelivery",
+    "EmailOutbox",
     "Invoice",
     "InvoiceLineItem",
     "InvoicePayment",
@@ -75,4 +79,3 @@ __all__ = [
     "WorkOrderWorkforceAssignment",
     "WorkforceProfile",
 ]
-from app.models.document_delivery import DocumentDelivery

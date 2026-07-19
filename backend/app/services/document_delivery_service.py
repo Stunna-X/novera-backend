@@ -1,16 +1,17 @@
 """
 Document delivery service.
 
-Records invoice and quote delivery attempts. This is the
-foundation for future real email-provider integration.
+Creates document delivery records and queues email outbox jobs.
+This service does not perform network email sending.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
+
+from app.core.config import settings
 from sqlalchemy.orm import Session
 
 from app.models.document_delivery import DocumentDelivery
@@ -27,6 +28,7 @@ from app.schemas.document_delivery import (
 )
 from app.services.audit_log_service import AuditLogService
 from app.services.document_pdf_service import DocumentPDFService
+from app.services.email_outbox_service import EmailOutboxService
 
 
 class DocumentDeliveryService:
@@ -42,6 +44,7 @@ class DocumentDeliveryService:
         self.deliveries = DocumentDeliveryRepository(db)
         self.audit_logs = AuditLogService(db)
         self.pdfs = DocumentPDFService(db)
+        self.email_outbox = EmailOutboxService(db)
 
     def send_invoice(
         self,
@@ -54,7 +57,7 @@ class DocumentDeliveryService:
         include_inactive: bool = False,
     ) -> DocumentDeliveryResponse:
         """
-        Record an invoice delivery attempt.
+        Queue an invoice email and record delivery metadata.
         """
 
         invoice = self._get_invoice_or_404(
@@ -101,15 +104,32 @@ class DocumentDeliveryService:
                 "work_order_id": str(invoice.work_order_id),
                 "invoice_status": invoice.status,
                 "include_pdf": payload.include_pdf,
-                "provider_mode": "manual_tracking_only",
+                "provider_mode": "email_outbox_queued",
             },
         )
+
+        email = self.email_outbox.enqueue_for_delivery(
+            delivery=delivery,
+            body_text=message,
+            attachment_filename=(
+                filename if payload.include_pdf else None
+            ),
+            actor_user_id=actor_user_id,
+        )
+
+        delivery.details = {
+            **(delivery.details or {}),
+            "email_outbox_id": str(email.id),
+            "email_outbox_status": email.status,
+            "provider": email.provider,
+        }
 
         self._record_audit_event(
             organization_id=organization_id,
             actor_user_id=actor_user_id,
             actor_membership_id=actor_membership_id,
             delivery=delivery,
+            email_outbox_id=email.id,
         )
 
         self.db.commit()
@@ -128,7 +148,7 @@ class DocumentDeliveryService:
         include_inactive: bool = False,
     ) -> DocumentDeliveryResponse:
         """
-        Record a quote delivery attempt.
+        Queue a quote email and record delivery metadata.
         """
 
         quote = self._get_quote_or_404(
@@ -179,15 +199,32 @@ class DocumentDeliveryService:
                 ),
                 "quote_status": quote.status,
                 "include_pdf": payload.include_pdf,
-                "provider_mode": "manual_tracking_only",
+                "provider_mode": "email_outbox_queued",
             },
         )
+
+        email = self.email_outbox.enqueue_for_delivery(
+            delivery=delivery,
+            body_text=message,
+            attachment_filename=(
+                filename if payload.include_pdf else None
+            ),
+            actor_user_id=actor_user_id,
+        )
+
+        delivery.details = {
+            **(delivery.details or {}),
+            "email_outbox_id": str(email.id),
+            "email_outbox_status": email.status,
+            "provider": email.provider,
+        }
 
         self._record_audit_event(
             organization_id=organization_id,
             actor_user_id=actor_user_id,
             actor_membership_id=actor_membership_id,
             delivery=delivery,
+            email_outbox_id=email.id,
         )
 
         self.db.commit()
@@ -340,10 +377,10 @@ class DocumentDeliveryService:
             subject=subject,
             message=message,
             delivery_channel="email",
-            delivery_status="recorded",
-            provider="manual",
+            delivery_status="queued",
+            provider=settings.EMAIL_PROVIDER,
             pdf_filename=pdf_filename,
-            sent_at=datetime.now(UTC),
+            sent_at=None,
             sent_by_user_id=actor_user_id,
             details=details,
         )
@@ -357,6 +394,7 @@ class DocumentDeliveryService:
         actor_user_id: uuid.UUID | None,
         actor_membership_id: uuid.UUID | None,
         delivery: DocumentDelivery,
+        email_outbox_id: uuid.UUID,
     ) -> None:
         self.audit_logs.record_event(
             organization_id=organization_id,
@@ -364,13 +402,13 @@ class DocumentDeliveryService:
                 actor_user_id=actor_user_id,
                 actor_membership_id=actor_membership_id,
                 action=(
-                    f"{delivery.document_type}.delivery_recorded"
+                    f"{delivery.document_type}.delivery_queued"
                 ),
                 entity_type="document_delivery",
                 entity_id=delivery.id,
                 summary=(
                     f"{delivery.document_type.title()} "
-                    f"{delivery.document_number} delivery recorded "
+                    f"{delivery.document_number} email queued "
                     f"for {delivery.recipient_email}."
                 ),
                 status="success",
@@ -383,11 +421,11 @@ class DocumentDeliveryService:
                     "recipient_email": delivery.recipient_email,
                     "delivery_status": delivery.delivery_status,
                     "pdf_filename": delivery.pdf_filename,
+                    "email_outbox_id": str(email_outbox_id),
                 },
             ),
             commit=False,
         )
-
 
     def _build_response(
         self,

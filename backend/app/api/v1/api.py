@@ -23,6 +23,9 @@ from app.api.v1.invoices.router import router as invoice_router
 from app.api.v1.document_deliveries.router import (
     router as document_delivery_router,
 )
+from app.api.v1.email_outbox.router import (
+    router as email_outbox_router,
+)
 from app.api.v1.memberships.router import (
     router as membership_router,
 )
@@ -145,4 +148,8 @@ api_router.include_router(
 
 api_router.include_router(
     document_delivery_router,
+)
+
+api_router.include_router(
+    email_outbox_router,
 )

@@ -58,6 +58,20 @@ class Settings(BaseSettings):
     JWT_AUDIENCE: str = "novera-api"
 
     # -------------------------------------------------------------------------
+    # Email
+    # -------------------------------------------------------------------------
+
+    EMAIL_PROVIDER: str = "development"
+
+    EMAIL_FROM_EMAIL: str = "no-reply@novera.local"
+
+    EMAIL_FROM_NAME: str = "Novera"
+
+    EMAIL_REPLY_TO_EMAIL: str | None = None
+
+    EMAIL_OUTBOX_MAX_ATTEMPTS: int = 3
+
+    # -------------------------------------------------------------------------
     # CORS
     # -------------------------------------------------------------------------
 
