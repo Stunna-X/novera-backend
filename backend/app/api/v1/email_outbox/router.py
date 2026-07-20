@@ -62,12 +62,12 @@ def list_email_outbox(
         default=None,
     ),
     context: OrganizationContext = Depends(
-        require_permission("reports.read")
+        require_permission("email_outbox.read")
     ),
     db: Session = Depends(get_db),
 ) -> EmailOutboxListResponse:
     """
-    List queued, sent, and failed email outbox records.
+    List queued, sent, failed, and cancelled email records.
     """
 
     service = EmailOutboxService(db)
@@ -91,12 +91,12 @@ def list_email_outbox(
 def get_email_outbox_message(
     email_outbox_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("reports.read")
+        require_permission("email_outbox.read")
     ),
     db: Session = Depends(get_db),
 ) -> EmailOutboxResponse:
     """
-    Return one email outbox record.
+    Return one email-outbox record.
     """
 
     service = EmailOutboxService(db)
@@ -110,7 +110,7 @@ def get_email_outbox_message(
 @router.post(
     "/{email_outbox_id}/mark-sent",
     response_model=EmailOutboxResponse,
-    summary="Mark email outbox message sent",
+    summary="Reconcile email as sent",
     responses={
         404: {
             "description": "Email outbox message not found.",
@@ -124,12 +124,12 @@ def mark_email_outbox_sent(
     email_outbox_id: uuid.UUID,
     payload: EmailOutboxMarkSentRequest,
     context: OrganizationContext = Depends(
-        require_permission("reports.read")
+        require_permission("email_outbox.manage")
     ),
     db: Session = Depends(get_db),
 ) -> EmailOutboxResponse:
     """
-    Mark a queued email as sent after provider confirmation.
+    Manually reconcile a queued email as provider-accepted.
     """
 
     service = EmailOutboxService(db)
@@ -146,7 +146,7 @@ def mark_email_outbox_sent(
 @router.post(
     "/{email_outbox_id}/mark-failed",
     response_model=EmailOutboxResponse,
-    summary="Mark email outbox message failed",
+    summary="Reconcile email as failed",
     responses={
         404: {
             "description": "Email outbox message not found.",
@@ -160,12 +160,12 @@ def mark_email_outbox_failed(
     email_outbox_id: uuid.UUID,
     payload: EmailOutboxMarkFailedRequest,
     context: OrganizationContext = Depends(
-        require_permission("reports.read")
+        require_permission("email_outbox.manage")
     ),
     db: Session = Depends(get_db),
 ) -> EmailOutboxResponse:
     """
-    Mark an email as failed and update its document delivery.
+    Manually record an email failure and synchronize delivery.
     """
 
     service = EmailOutboxService(db)
@@ -196,12 +196,12 @@ def retry_email_outbox_message(
     email_outbox_id: uuid.UUID,
     payload: EmailOutboxRetryRequest,
     context: OrganizationContext = Depends(
-        require_permission("reports.read")
+        require_permission("email_outbox.manage")
     ),
     db: Session = Depends(get_db),
 ) -> EmailOutboxResponse:
     """
-    Re-queue a failed email for another attempt.
+    Re-queue a failed or cancelled email for another attempt.
     """
 
     service = EmailOutboxService(db)

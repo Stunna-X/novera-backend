@@ -1,14 +1,15 @@
-﻿"""
+"""
 Seed Novera's default roles, permissions, and role assignments.
 
 Run from the backend directory with:
 
     python -m app.scripts.seed_access_control
 
-The script is idempotent:
-- Existing roles are reused.
-- Existing permissions are reused.
-- Existing role-permission links are not duplicated.
+The operation is idempotent.
+
+System roles are synchronized to their canonical permission
+definitions. Missing assignments are created and obsolete
+assignments are removed.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ PERMISSIONS: dict[str, str] = {
     # Memberships
     "memberships.read": "View organization members.",
     "memberships.create": "Add members to an organization.",
-    "memberships.update": "Change member roles.",
+    "memberships.update": "Change organization memberships.",
     "memberships.delete": "Remove organization members.",
 
     # Roles
@@ -39,10 +40,10 @@ PERMISSIONS: dict[str, str] = {
     "roles.assign": "Assign roles to organization members.",
 
     # Customers
-    "customers.read": "View customers.",
-    "customers.create": "Create customers.",
-    "customers.update": "Update customers.",
-    "customers.delete": "Delete customers.",
+    "customers.read": "View customers and customer sites.",
+    "customers.create": "Create customers and customer sites.",
+    "customers.update": "Update customers and customer sites.",
+    "customers.delete": "Delete customers and customer sites.",
 
     # Workforce
     "workforce.read": "View workforce members and teams.",
@@ -70,10 +71,79 @@ PERMISSIONS: dict[str, str] = {
     "work_orders.assign": "Assign work orders to field personnel.",
     "work_orders.status": "Update work-order status.",
 
-    # Dashboard and reports
+    # Scheduling
+    "scheduling.read": "View schedules and dispatch information.",
+    "scheduling.update": "Update work-order schedules.",
+    "scheduling.dispatch": "Dispatch scheduled field work.",
+
+    # Work-order closeouts
+    "closeouts.read": "View work-order closeout records.",
+    "closeouts.create": "Create work-order closeout records.",
+    "closeouts.update": "Update work-order closeout records.",
+    "closeouts.approve": "Approve work-order closeouts.",
+    "closeouts.reject": "Reject work-order closeouts.",
+    "closeouts.invoice_ready": (
+        "Mark approved closeouts as ready for invoicing."
+    ),
+
+    # Expenses
+    "expenses.read": "View work-order expenses.",
+    "expenses.create": "Create work-order expenses.",
+    "expenses.update": "Update work-order expenses.",
+    "expenses.delete": "Delete work-order expenses.",
+    "expenses.review": "Approve or reject work-order expenses.",
+
+    # Notifications
+    "notifications.read": "View organization notifications.",
+    "notifications.create": "Create organization notifications.",
+    "notifications.update": (
+        "Update, read, archive, or dismiss notifications."
+    ),
+
+    # Quotes
+    "quotes.read": "View quotes and quote activity.",
+    "quotes.create": "Create quotes.",
+    "quotes.update": "Update quote records and line items.",
+    "quotes.respond": (
+        "Send, accept, reject, or expire quotes."
+    ),
+
+    # Finance
+    "finance.invoices.read": "View invoices and payments.",
+    "finance.invoices.create": "Create invoices.",
+    "finance.invoices.update": (
+        "Update invoice records and line items."
+    ),
+    "finance.invoices.issue": "Issue invoices to customers.",
+    "finance.invoices.void": "Void issued invoices.",
+    "finance.payments.record": (
+        "Record payments against invoices."
+    ),
+    "finance.payments.reverse": (
+        "Reverse previously recorded invoice payments."
+    ),
+
+    # Document delivery
+    "document_deliveries.read": (
+        "View document-delivery history and status."
+    ),
+    "document_deliveries.send": (
+        "Queue invoices and quotes for customer delivery."
+    ),
+
+    # Email outbox
+    "email_outbox.read": (
+        "View queued and processed outbound email records."
+    ),
+    "email_outbox.manage": (
+        "Retry or manually reconcile outbound email records."
+    ),
+
+    # Dashboard, reports, and audit
     "dashboard.read": "View the operations dashboard.",
     "reports.read": "View operational reports.",
     "reports.export": "Export operational reports.",
+    "audit_logs.read": "View and export organization audit logs.",
 }
 
 
@@ -87,14 +157,14 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
     "Admin": {
         "description": (
             "Administrative access to organization settings, "
-            "members, and operations."
+            "members, finance, and operations."
         ),
         "permissions": set(PERMISSIONS),
     },
     "Operations Manager": {
         "description": (
-            "Manages customers, teams, assets, projects, "
-            "work orders, and operational reporting."
+            "Manages customers, field teams, assets, work orders, "
+            "scheduling, closeouts, finance, and reporting."
         ),
         "permissions": {
             "organizations.read",
@@ -126,14 +196,48 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "work_orders.delete",
             "work_orders.assign",
             "work_orders.status",
+            "scheduling.read",
+            "scheduling.update",
+            "scheduling.dispatch",
+            "closeouts.read",
+            "closeouts.create",
+            "closeouts.update",
+            "closeouts.approve",
+            "closeouts.reject",
+            "closeouts.invoice_ready",
+            "expenses.read",
+            "expenses.create",
+            "expenses.update",
+            "expenses.delete",
+            "expenses.review",
+            "notifications.read",
+            "notifications.create",
+            "notifications.update",
+            "quotes.read",
+            "quotes.create",
+            "quotes.update",
+            "quotes.respond",
+            "finance.invoices.read",
+            "finance.invoices.create",
+            "finance.invoices.update",
+            "finance.invoices.issue",
+            "finance.invoices.void",
+            "finance.payments.record",
+            "finance.payments.reverse",
+            "document_deliveries.read",
+            "document_deliveries.send",
+            "email_outbox.read",
+            "email_outbox.manage",
             "dashboard.read",
             "reports.read",
             "reports.export",
+            "audit_logs.read",
         },
     },
     "Supervisor": {
         "description": (
-            "Supervises field operations and assigned work."
+            "Supervises field operations, dispatch, closeouts, "
+            "expenses, quotes, and assigned work."
         ),
         "permissions": {
             "organizations.read",
@@ -148,13 +252,39 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "work_orders.update",
             "work_orders.assign",
             "work_orders.status",
+            "scheduling.read",
+            "scheduling.update",
+            "scheduling.dispatch",
+            "closeouts.read",
+            "closeouts.create",
+            "closeouts.update",
+            "closeouts.approve",
+            "closeouts.reject",
+            "closeouts.invoice_ready",
+            "expenses.read",
+            "expenses.create",
+            "expenses.update",
+            "expenses.review",
+            "notifications.read",
+            "notifications.create",
+            "notifications.update",
+            "quotes.read",
+            "quotes.create",
+            "quotes.update",
+            "quotes.respond",
+            "finance.invoices.read",
+            "document_deliveries.read",
+            "document_deliveries.send",
+            "email_outbox.read",
             "dashboard.read",
             "reports.read",
+            "audit_logs.read",
         },
     },
     "Technician": {
         "description": (
-            "Views assigned field work and records job progress."
+            "Views assigned field work and records job progress, "
+            "closeout information, and field expenses."
         ),
         "permissions": {
             "organizations.read",
@@ -162,6 +292,15 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "projects.read",
             "work_orders.read",
             "work_orders.status",
+            "scheduling.read",
+            "closeouts.read",
+            "closeouts.create",
+            "closeouts.update",
+            "expenses.read",
+            "expenses.create",
+            "expenses.update",
+            "notifications.read",
+            "notifications.update",
         },
     },
     "Viewer": {
@@ -177,6 +316,13 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "assets.read",
             "projects.read",
             "work_orders.read",
+            "scheduling.read",
+            "closeouts.read",
+            "expenses.read",
+            "notifications.read",
+            "quotes.read",
+            "finance.invoices.read",
+            "document_deliveries.read",
             "dashboard.read",
             "reports.read",
         },
@@ -188,9 +334,11 @@ def get_or_create_permission(
     db: Session,
     name: str,
     description: str,
-) -> tuple[Permission, bool]:
+) -> tuple[Permission, bool, bool]:
     """
-    Retrieve an existing permission or create it.
+    Retrieve or create a permission.
+
+    Returns the permission plus created and updated flags.
     """
 
     normalized_name = name.strip().lower()
@@ -204,10 +352,17 @@ def get_or_create_permission(
     )
 
     if permission is not None:
+        updated = False
+
+        if permission.name != normalized_name:
+            permission.name = normalized_name
+            updated = True
+
         if permission.description != description:
             permission.description = description
+            updated = True
 
-        return permission, False
+        return permission, False, updated
 
     permission = Permission(
         name=normalized_name,
@@ -217,16 +372,16 @@ def get_or_create_permission(
     db.add(permission)
     db.flush()
 
-    return permission, True
+    return permission, True, False
 
 
 def get_or_create_role(
     db: Session,
     name: str,
     description: str,
-) -> tuple[Role, bool]:
+) -> tuple[Role, bool, bool]:
     """
-    Retrieve an existing role or create it.
+    Retrieve or create a canonical system role.
     """
 
     normalized_name = name.strip().lower()
@@ -240,10 +395,21 @@ def get_or_create_role(
     )
 
     if role is not None:
-        role.description = description
-        role.is_system = True
+        updated = False
 
-        return role, False
+        if role.name != name.strip():
+            role.name = name.strip()
+            updated = True
+
+        if role.description != description:
+            role.description = description
+            updated = True
+
+        if not role.is_system:
+            role.is_system = True
+            updated = True
+
+        return role, False, updated
 
     role = Role(
         name=name.strip(),
@@ -254,48 +420,147 @@ def get_or_create_role(
     db.add(role)
     db.flush()
 
-    return role, True
+    return role, True, False
 
 
-def role_permission_exists(
+def synchronize_role_permissions(
+    *,
     db: Session,
-    role_id,
-    permission_id,
-) -> bool:
+    role: Role,
+    permission_names: set[str],
+    permission_records: dict[str, Permission],
+) -> tuple[int, int]:
     """
-    Check whether a role-permission assignment already exists.
+    Synchronize one system role to its canonical permissions.
+
+    Returns created and removed assignment counts.
     """
 
-    return (
-        db.query(RolePermission.id)
-        .filter(
-            RolePermission.role_id == role_id,
-            RolePermission.permission_id == permission_id,
-        )
-        .first()
-        is not None
+    unknown_permissions = (
+        permission_names - set(permission_records)
     )
+
+    if unknown_permissions:
+        raise ValueError(
+            "Role references undefined permissions: "
+            + ", ".join(sorted(unknown_permissions))
+        )
+
+    desired_permission_ids = {
+        permission_records[name].id
+        for name in permission_names
+    }
+
+    existing_assignments = (
+        db.query(RolePermission)
+        .filter(
+            RolePermission.role_id == role.id
+        )
+        .all()
+    )
+
+    existing_by_permission_id = {
+        assignment.permission_id: assignment
+        for assignment in existing_assignments
+    }
+
+    created_count = 0
+    removed_count = 0
+
+    for permission_id, assignment in (
+        existing_by_permission_id.items()
+    ):
+        if permission_id in desired_permission_ids:
+            continue
+
+        db.delete(assignment)
+        removed_count += 1
+
+    for permission_id in desired_permission_ids:
+        if permission_id in existing_by_permission_id:
+            continue
+
+        db.add(
+            RolePermission(
+                role_id=role.id,
+                permission_id=permission_id,
+            )
+        )
+
+        created_count += 1
+
+    return created_count, removed_count
+
+
+def validate_definitions() -> None:
+    """
+    Validate the in-code permission and role catalogue.
+    """
+
+    normalized_permissions = {
+        name.strip().lower()
+        for name in PERMISSIONS
+    }
+
+    if len(normalized_permissions) != len(PERMISSIONS):
+        raise ValueError(
+            "Permission names must be unique after normalization."
+        )
+
+    for permission_name in PERMISSIONS:
+        if permission_name != permission_name.strip().lower():
+            raise ValueError(
+                "Permission names must be lowercase and trimmed: "
+                f"{permission_name!r}"
+            )
+
+    for role_name, definition in ROLE_DEFINITIONS.items():
+        permission_names = definition.get("permissions")
+
+        if not isinstance(permission_names, set):
+            raise TypeError(
+                f"Permissions for role {role_name!r} "
+                "must be stored as a set."
+            )
+
+        unknown_permissions = (
+            permission_names - set(PERMISSIONS)
+        )
+
+        if unknown_permissions:
+            raise ValueError(
+                f"Role {role_name!r} references undefined "
+                "permissions: "
+                + ", ".join(sorted(unknown_permissions))
+            )
 
 
 def seed_access_control() -> None:
     """
-    Seed all standard roles, permissions, and assignments.
+    Seed permissions and synchronize standard system roles.
     """
+
+    validate_definitions()
 
     db = SessionLocal()
 
     created_permissions = 0
+    updated_permissions = 0
     created_roles = 0
+    updated_roles = 0
     created_assignments = 0
+    removed_assignments = 0
 
     try:
         permission_records: dict[str, Permission] = {}
 
         for permission_name, description in PERMISSIONS.items():
-            permission, created = get_or_create_permission(
-                db=db,
-                name=permission_name,
-                description=description,
+            permission, created, updated = (
+                get_or_create_permission(
+                    db=db,
+                    name=permission_name,
+                    description=description,
+                )
             )
 
             permission_records[permission_name] = permission
@@ -303,8 +568,11 @@ def seed_access_control() -> None:
             if created:
                 created_permissions += 1
 
+            if updated:
+                updated_permissions += 1
+
         for role_name, definition in ROLE_DEFINITIONS.items():
-            role, created = get_or_create_role(
+            role, created, updated = get_or_create_role(
                 db=db,
                 name=role_name,
                 description=str(definition["description"]),
@@ -313,42 +581,43 @@ def seed_access_control() -> None:
             if created:
                 created_roles += 1
 
+            if updated:
+                updated_roles += 1
+
             permission_names = definition["permissions"]
 
             if not isinstance(permission_names, set):
                 raise TypeError(
-                    f"Permissions for role '{role_name}' "
+                    f"Permissions for role {role_name!r} "
                     "must be stored as a set."
                 )
 
-            for permission_name in permission_names:
-                permission = permission_records[
-                    permission_name
-                ]
-
-                if role_permission_exists(
+            created_count, removed_count = (
+                synchronize_role_permissions(
                     db=db,
-                    role_id=role.id,
-                    permission_id=permission.id,
-                ):
-                    continue
-
-                assignment = RolePermission(
-                    role_id=role.id,
-                    permission_id=permission.id,
+                    role=role,
+                    permission_names=permission_names,
+                    permission_records=permission_records,
                 )
+            )
 
-                db.add(assignment)
-                created_assignments += 1
+            created_assignments += created_count
+            removed_assignments += removed_count
 
         db.commit()
 
         print("Novera access-control seed completed.")
         print(f"Created permissions: {created_permissions}")
+        print(f"Updated permissions: {updated_permissions}")
         print(f"Created roles: {created_roles}")
+        print(f"Updated roles: {updated_roles}")
         print(
             "Created role-permission assignments: "
             f"{created_assignments}"
+        )
+        print(
+            "Removed obsolete role-permission assignments: "
+            f"{removed_assignments}"
         )
 
     except Exception:

@@ -15,10 +15,10 @@ from app.api.deps import (
 )
 from app.database.session import get_db
 from app.schemas.document_delivery import (
+    DeliveryStatus,
     DocumentDeliveryListResponse,
     DocumentDeliveryResponse,
     DocumentDeliverySendRequest,
-    DeliveryStatus,
     DocumentType,
 )
 from app.services.document_delivery_service import (
@@ -36,7 +36,7 @@ router = APIRouter(
     "/invoices/{invoice_id}/send",
     response_model=DocumentDeliveryResponse,
     status_code=201,
-    summary="Record invoice delivery",
+    summary="Queue invoice email delivery",
 )
 def send_invoice_document(
     invoice_id: uuid.UUID,
@@ -45,15 +45,12 @@ def send_invoice_document(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("finance.invoices.read")
+        require_permission("document_deliveries.send")
     ),
     db: Session = Depends(get_db),
 ) -> DocumentDeliveryResponse:
     """
-    Record an invoice delivery attempt.
-
-    This tracks delivery metadata only. Real email sending will
-    be wired to an email provider later.
+    Queue an invoice email and create its delivery record.
     """
 
     service = DocumentDeliveryService(db)
@@ -72,7 +69,7 @@ def send_invoice_document(
     "/quotes/{quote_id}/send-delivery",
     response_model=DocumentDeliveryResponse,
     status_code=201,
-    summary="Record quote delivery",
+    summary="Queue quote email delivery",
 )
 def send_quote_document(
     quote_id: uuid.UUID,
@@ -81,14 +78,14 @@ def send_quote_document(
         default=False,
     ),
     context: OrganizationContext = Depends(
-        require_permission("quotes.read")
+        require_permission("document_deliveries.send")
     ),
     db: Session = Depends(get_db),
 ) -> DocumentDeliveryResponse:
     """
-    Record a quote delivery attempt.
+    Queue a quote email and create its delivery record.
 
-    This is separate from the quote lifecycle /send endpoint.
+    This is separate from the quote-lifecycle send operation.
     """
 
     service = DocumentDeliveryService(db)
@@ -133,12 +130,12 @@ def list_document_deliveries(
         max_length=320,
     ),
     context: OrganizationContext = Depends(
-        require_permission("reports.read")
+        require_permission("document_deliveries.read")
     ),
     db: Session = Depends(get_db),
 ) -> DocumentDeliveryListResponse:
     """
-    List tracked document delivery records.
+    List tracked document-delivery records.
     """
 
     service = DocumentDeliveryService(db)
@@ -162,12 +159,12 @@ def list_document_deliveries(
 def get_document_delivery(
     delivery_id: uuid.UUID,
     context: OrganizationContext = Depends(
-        require_permission("reports.read")
+        require_permission("document_deliveries.read")
     ),
     db: Session = Depends(get_db),
 ) -> DocumentDeliveryResponse:
     """
-    Return one document delivery record.
+    Return one document-delivery record.
     """
 
     service = DocumentDeliveryService(db)
