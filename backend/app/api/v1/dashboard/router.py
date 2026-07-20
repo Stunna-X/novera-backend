@@ -1,4 +1,4 @@
-﻿"""
+"""
 Dashboard routes.
 
 Provides organization-scoped operational and commercial analytics

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Dashboard service.
 
 Builds organization-scoped analytics for work orders, quotes,

@@ -1,1 +1,1 @@
-﻿"""Reports API package."""
+"""Reports API package."""

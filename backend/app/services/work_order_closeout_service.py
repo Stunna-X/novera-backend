@@ -1,4 +1,4 @@
-﻿"""Work-order closeout service.
+"""Work-order closeout service.
 
 Handles closeout report submission, customer sign-off,
 invoice-readiness, and audit trail recording.

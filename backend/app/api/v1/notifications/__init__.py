@@ -1,1 +1,1 @@
-﻿"""Notifications API package."""
+"""Notifications API package."""

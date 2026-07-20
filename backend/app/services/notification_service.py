@@ -1,4 +1,4 @@
-﻿"""
+"""
 Notification service.
 
 Coordinates notification creation, listing, read state,

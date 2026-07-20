@@ -1,1 +1,1 @@
-﻿"""Work-order closeout API package."""
+"""Work-order closeout API package."""

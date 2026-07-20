@@ -1,4 +1,4 @@
-﻿"""
+"""
 Notification routes.
 
 Provides organization-scoped notification inbox endpoints.

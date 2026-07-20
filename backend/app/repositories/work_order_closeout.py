@@ -1,4 +1,4 @@
-﻿"""Work-order closeout repository."""
+"""Work-order closeout repository."""
 
 from __future__ import annotations
 

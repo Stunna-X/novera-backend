@@ -1,1 +1,1 @@
-﻿"""Dashboard API package."""
+"""Dashboard API package."""

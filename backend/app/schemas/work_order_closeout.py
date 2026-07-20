@@ -1,4 +1,4 @@
-﻿"""Work-order closeout schemas.
+"""Work-order closeout schemas.
 
 Defines request validation and API responses for completion
 reports, customer approval, and invoice-readiness.

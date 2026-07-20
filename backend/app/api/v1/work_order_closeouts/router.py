@@ -1,4 +1,4 @@
-﻿"""Work-order closeout routes."""
+"""Work-order closeout routes."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Invoice service.
 
 Handles organization-scoped invoice creation, expense conversion,

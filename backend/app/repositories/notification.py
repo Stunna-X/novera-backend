@@ -1,4 +1,4 @@
-﻿"""
+"""
 Notification repository.
 
 Provides organization-scoped notification persistence helpers.

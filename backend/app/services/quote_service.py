@@ -1,4 +1,4 @@
-﻿"""
+"""
 Quote service.
 
 Implements quote creation, pricing, lifecycle transitions,

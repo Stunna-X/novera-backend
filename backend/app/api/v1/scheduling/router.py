@@ -1,4 +1,4 @@
-﻿"""
+"""
 Scheduling routes.
 
 Provides organization-scoped endpoints for dispatch calendar,

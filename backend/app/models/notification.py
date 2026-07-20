@@ -1,4 +1,4 @@
-﻿"""
+"""
 Notification model.
 
 Stores organization-scoped user notifications for operational,

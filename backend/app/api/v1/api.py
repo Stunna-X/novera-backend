@@ -1,4 +1,4 @@
-﻿"""
+"""
 API Router Aggregator.
 
 Every Version 1 endpoint is registered here.

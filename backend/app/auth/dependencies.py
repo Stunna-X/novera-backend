@@ -1,4 +1,4 @@
-﻿"""
+"""
 Authentication dependencies.
 
 Provides reusable FastAPI dependencies for protected routes.

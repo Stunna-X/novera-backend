@@ -1,4 +1,4 @@
-﻿"""
+"""
 Scheduling service.
 
 Contains scheduling, dispatch, calendar listing, and resource

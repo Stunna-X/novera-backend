@@ -1,4 +1,4 @@
-﻿"""
+"""
 Notification schemas.
 
 Defines request validation and API responses for user

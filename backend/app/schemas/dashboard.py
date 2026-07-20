@@ -1,4 +1,4 @@
-﻿"""
+"""
 Dashboard schemas.
 
 Defines response models for operational, commercial, finance,

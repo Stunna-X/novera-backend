@@ -1,4 +1,4 @@
-﻿"""
+"""
 Reports routes.
 
 Provides organization-scoped operations, finance,

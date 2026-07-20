@@ -1,4 +1,4 @@
-﻿"""
+"""
 Work-order service.
 
 Contains validation, status transitions, assignments, checklist

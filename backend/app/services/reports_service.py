@@ -1,4 +1,4 @@
-﻿"""
+"""
 Reports service.
 
 Builds organization-scoped operational, financial, work-order,

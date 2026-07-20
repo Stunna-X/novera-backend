@@ -1,1 +1,1 @@
-﻿"""Scheduling API package."""
+"""Scheduling API package."""

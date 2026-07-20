@@ -1,4 +1,4 @@
-﻿"""Work-order closeout model.
+"""Work-order closeout model.
 
 Stores completion reports, customer sign-off, invoice-readiness,
 and closeout audit data for completed work orders.

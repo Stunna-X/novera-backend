@@ -1,4 +1,4 @@
-﻿"""
+"""
 Auto-notification service.
 
 Queues organization-scoped notifications for important business

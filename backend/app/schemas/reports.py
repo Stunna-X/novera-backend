@@ -1,4 +1,4 @@
-﻿"""
+"""
 Report schemas.
 
 Defines response models for organization reports.
