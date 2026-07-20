@@ -7,8 +7,11 @@ a strongly typed Settings object.
 
 from functools import lru_cache
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+)
 
 
 class Settings(BaseSettings):
@@ -58,7 +61,7 @@ class Settings(BaseSettings):
     JWT_AUDIENCE: str = "novera-api"
 
     # -------------------------------------------------------------------------
-    # Email
+    # Email identity
     # -------------------------------------------------------------------------
 
     EMAIL_PROVIDER: str = "development"
@@ -69,7 +72,79 @@ class Settings(BaseSettings):
 
     EMAIL_REPLY_TO_EMAIL: str | None = None
 
-    EMAIL_OUTBOX_MAX_ATTEMPTS: int = 3
+    # -------------------------------------------------------------------------
+    # Development email provider
+    # -------------------------------------------------------------------------
+
+    EMAIL_DEVELOPMENT_OUTBOX_DIR: str = (
+        "var/email-outbox"
+    )
+
+    # -------------------------------------------------------------------------
+    # SMTP provider
+    # -------------------------------------------------------------------------
+
+    EMAIL_SMTP_HOST: str | None = None
+
+    EMAIL_SMTP_PORT: int = Field(
+        default=587,
+        ge=1,
+        le=65535,
+    )
+
+    EMAIL_SMTP_USERNAME: str | None = None
+
+    EMAIL_SMTP_PASSWORD: str | None = None
+
+    EMAIL_SMTP_USE_STARTTLS: bool = True
+
+    EMAIL_SMTP_USE_SSL: bool = False
+
+    EMAIL_SMTP_TIMEOUT_SECONDS: float = Field(
+        default=30.0,
+        gt=0,
+        le=300,
+    )
+
+    # -------------------------------------------------------------------------
+    # Email outbox worker
+    # -------------------------------------------------------------------------
+
+    EMAIL_OUTBOX_MAX_ATTEMPTS: int = Field(
+        default=3,
+        ge=1,
+        le=100,
+    )
+
+    EMAIL_OUTBOX_BATCH_SIZE: int = Field(
+        default=20,
+        ge=1,
+        le=500,
+    )
+
+    EMAIL_OUTBOX_POLL_SECONDS: float = Field(
+        default=5.0,
+        ge=1,
+        le=3600,
+    )
+
+    EMAIL_OUTBOX_STALE_AFTER_SECONDS: int = Field(
+        default=300,
+        ge=30,
+        le=86400,
+    )
+
+    EMAIL_OUTBOX_RETRY_BASE_SECONDS: int = Field(
+        default=60,
+        ge=1,
+        le=86400,
+    )
+
+    EMAIL_OUTBOX_RETRY_MAX_SECONDS: int = Field(
+        default=3600,
+        ge=1,
+        le=604800,
+    )
 
     # -------------------------------------------------------------------------
     # CORS
@@ -80,12 +155,40 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
 
+    @field_validator(
+        "EMAIL_PROVIDER",
+    )
+    @classmethod
+    def validate_email_provider(
+        cls,
+        value: str,
+    ) -> str:
+        normalized = value.strip().lower()
+
+        allowed = {
+            "development",
+            "smtp",
+            "sendgrid",
+            "mailgun",
+            "manual",
+        }
+
+        if normalized not in allowed:
+            raise ValueError(
+                "EMAIL_PROVIDER must be one of: "
+                "development, smtp, sendgrid, mailgun, "
+                "or manual."
+            )
+
+        return normalized
+
 
 @lru_cache
 def get_settings() -> Settings:
     """
-    Returns a cached Settings instance.
+    Return a cached Settings instance.
     """
+
     return Settings()
 
 
