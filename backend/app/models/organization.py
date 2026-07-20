@@ -7,7 +7,7 @@ Every business resource in the platform belongs to an organization.
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Enum, Index, String, Text, Text
+from sqlalchemy import Boolean, Enum, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import BaseModel

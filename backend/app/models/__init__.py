@@ -11,6 +11,13 @@ from app.models.customer import Customer
 from app.models.customer_site import CustomerSite
 from app.models.document_delivery import DocumentDelivery
 from app.models.email_outbox import EmailOutbox
+from app.models.inventory import (
+    InventoryBalance,
+    InventoryItem,
+    InventoryLocation,
+    InventoryMovement,
+    InventoryReservation,
+)
 from app.models.invoice import (
     Invoice,
     InvoiceLineItem,
@@ -54,6 +61,11 @@ __all__ = [
     "CustomerSite",
     "DocumentDelivery",
     "EmailOutbox",
+    "InventoryBalance",
+    "InventoryItem",
+    "InventoryLocation",
+    "InventoryMovement",
+    "InventoryReservation",
     "Invoice",
     "InvoiceLineItem",
     "InvoicePayment",
