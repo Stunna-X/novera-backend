@@ -57,6 +57,20 @@ PERMISSIONS: dict[str, str] = {
     "assets.update": "Update equipment and asset records.",
     "assets.delete": "Delete equipment and asset records.",
 
+    # Inventory
+    "inventory.read": (
+        "View inventory locations, items, balances, and stock alerts."
+    ),
+    "inventory.create": (
+        "Create inventory locations and catalogue items."
+    ),
+    "inventory.update": (
+        "Update inventory locations and catalogue items."
+    ),
+    "inventory.delete": (
+        "Deactivate inventory locations and catalogue items."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -186,6 +200,10 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "assets.create",
             "assets.update",
             "assets.delete",
+            "inventory.read",
+            "inventory.create",
+            "inventory.update",
+            "inventory.delete",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -246,6 +264,9 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "customers.read",
             "workforce.read",
             "assets.read",
+            "inventory.read",
+            "inventory.create",
+            "inventory.update",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -289,6 +310,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
         "permissions": {
             "organizations.read",
             "assets.read",
+            "inventory.read",
             "projects.read",
             "work_orders.read",
             "work_orders.status",
@@ -314,6 +336,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "customers.read",
             "workforce.read",
             "assets.read",
+            "inventory.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",

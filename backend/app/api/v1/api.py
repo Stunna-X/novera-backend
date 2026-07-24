@@ -18,14 +18,15 @@ from app.api.v1.customers.router import router as customer_router
 from app.api.v1.dashboard.router import (
     router as dashboard_router,
 )
-from app.api.v1.health.router import router as health_router
-from app.api.v1.invoices.router import router as invoice_router
 from app.api.v1.document_deliveries.router import (
     router as document_delivery_router,
 )
 from app.api.v1.email_outbox.router import (
     router as email_outbox_router,
 )
+from app.api.v1.health.router import router as health_router
+from app.api.v1.inventory.router import router as inventory_router
+from app.api.v1.invoices.router import router as invoice_router
 from app.api.v1.memberships.router import (
     router as membership_router,
 )
@@ -96,6 +97,10 @@ api_router.include_router(
 
 api_router.include_router(
     asset_router,
+)
+
+api_router.include_router(
+    inventory_router,
 )
 
 api_router.include_router(
