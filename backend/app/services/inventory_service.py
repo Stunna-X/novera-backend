@@ -299,7 +299,7 @@ class InventoryService:
             ):
                 raise HTTPException(
                     status_code=(
-                        status.HTTP_422_UNPROCESSABLE_ENTITY
+                        status.HTTP_422_UNPROCESSABLE_CONTENT
                     ),
                     detail=(
                         f"{field_name.replace('_', ' ').title()} "
@@ -699,7 +699,7 @@ class InventoryService:
             ):
                 raise HTTPException(
                     status_code=(
-                        status.HTTP_422_UNPROCESSABLE_ENTITY
+                        status.HTTP_422_UNPROCESSABLE_CONTENT
                     ),
                     detail=(
                         f"{field_name.replace('_', ' ').title()} "
@@ -1235,7 +1235,7 @@ class InventoryService:
         ):
             raise HTTPException(
                 status_code=(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY
+                    status.HTTP_422_UNPROCESSABLE_CONTENT
                 ),
                 detail=(
                     "occurred_from cannot be later than "
@@ -1300,7 +1300,7 @@ class InventoryService:
         ):
             raise HTTPException(
                 status_code=(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY
+                    status.HTTP_422_UNPROCESSABLE_CONTENT
                 ),
                 detail=(
                     "Stock-operation currency must match the "
@@ -2003,7 +2003,7 @@ class InventoryService:
         ):
             raise HTTPException(
                 status_code=(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY
+                    status.HTTP_422_UNPROCESSABLE_CONTENT
                 ),
                 detail=(
                     "Source and destination locations must "
@@ -2351,7 +2351,7 @@ class InventoryService:
         ):
             raise HTTPException(
                 status_code=(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY
+                    status.HTTP_422_UNPROCESSABLE_CONTENT
                 ),
                 detail="expires_at must be in the future.",
             )
