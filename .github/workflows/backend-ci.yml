@@ -1,0 +1,105 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - feat/authentication
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: PostgreSQL tests and schema audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: novera_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d novera_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      APP_ENV: testing
+      DEBUG: "false"
+      ENABLE_API_DOCS: "true"
+      LOG_JSON: "false"
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/novera_ci
+      TEST_DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/novera_ci
+      SECRET_KEY: ci-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      EMAIL_PROVIDER: manual
+      CORS_ORIGINS: '["https://frontend.ci.novera.app"]'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+
+      - name: Validate dependencies
+        run: python -m pip check
+
+      - name: Compile source
+        run: python -m compileall -q app tests
+
+      - name: Apply migrations
+        run: alembic upgrade head
+
+      - name: Seed access control
+        run: python -m app.scripts.seed_access_control
+
+      - name: Check model and migration alignment
+        run: alembic check
+
+      - name: Run complete test suite
+        run: python -m pytest -q
+
+  image:
+    name: Production image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Build backend image
+        run: docker build --tag novera-backend:ci ./backend

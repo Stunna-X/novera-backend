@@ -35,6 +35,14 @@ Remove-Item Env:TEST_DATABASE_URL
 
 Never point `TEST_DATABASE_URL` at a production or shared application database.
 
+## Continuous integration
+
+`.github/workflows/backend-ci.yml` runs on backend changes pushed to `main` or `feat/authentication`, and on pull requests targeting `main`.
+
+The workflow starts disposable PostgreSQL, validates dependencies, compiles the code, applies the full migration chain, seeds access control, checks model-to-migration alignment, runs the complete PostgreSQL-backed suite, and builds the production image.
+
+Keep the workflow green before merging into `main`.
+
 ## Production configuration
 
 Set at least the following values through the deployment platform's secret and environment configuration:
@@ -92,3 +100,15 @@ docker run --rm --env-file .env.production -p 8000:8000 novera-backend
 ```
 
 The image runs as a non-root user and exposes a root-endpoint health check.
+
+## Local release simulation
+
+Docker Compose can verify the production image against disposable PostgreSQL without touching the development database:
+
+```powershell
+python .\scripts\release_smoke.py
+```
+
+The release smoke test builds the current image, applies all migrations in a one-shot container, starts the API with production safeguards, validates the root response, confirms the documentation endpoints are unavailable, and removes the temporary containers and database afterward.
+
+`compose.release.yml` contains local smoke-test credentials only. Real deployment secrets must remain in the deployment platform.
