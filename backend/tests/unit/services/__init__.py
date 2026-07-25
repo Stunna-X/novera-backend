@@ -1,3 +1,1 @@
-"""
-Unit tests.
-"""
+"""Service-layer unit tests."""
