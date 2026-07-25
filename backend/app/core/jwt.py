@@ -6,6 +6,7 @@ Creates and validates access and refresh tokens.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -25,6 +26,7 @@ def create_access_token(
 
     payload = {
         **data,
+        "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": now
         + timedelta(
@@ -53,6 +55,7 @@ def create_refresh_token(
 
     payload = {
         **data,
+        "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": now
         + timedelta(

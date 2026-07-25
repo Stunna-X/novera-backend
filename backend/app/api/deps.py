@@ -117,6 +117,11 @@ def require_permission(
 
     normalized_permission = permission_name.strip().lower()
 
+    if not normalized_permission:
+        raise ValueError(
+            "A permission name must be provided."
+        )
+
     def permission_dependency(
         context: OrganizationContext = Depends(
             get_organization_context
