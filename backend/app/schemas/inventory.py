@@ -2,7 +2,7 @@
 Inventory schemas.
 
 Defines validation and API responses for inventory locations,
-catalogue items, stock balances, and low-stock reporting.
+catalogue items, stock balances, stock operations, reservations, and the movement ledger.
 """
 
 from __future__ import annotations
@@ -947,3 +947,660 @@ class LowStockListResponse(BaseModel):
     total: int = Field(ge=0)
     skip: int = Field(ge=0)
     limit: int = Field(ge=1)
+
+# ------------------------------------------------------------------
+# Stock operations, reservations, and movement ledger
+# ------------------------------------------------------------------
+
+
+InventoryMovementType = Literal[
+    "opening_balance",
+    "receipt",
+    "issue",
+    "return",
+    "adjustment_in",
+    "adjustment_out",
+    "transfer_in",
+    "transfer_out",
+]
+
+InventoryReceiptType = Literal[
+    "receipt",
+    "opening_balance",
+]
+
+InventoryReservationStatus = Literal[
+    "active",
+    "partially_consumed",
+    "consumed",
+    "released",
+    "cancelled",
+]
+
+
+class InventoryOperationMetadataSchema(BaseModel):
+    """
+    Shared optional metadata for stock-changing operations.
+    """
+
+    occurred_at: datetime | None = None
+
+    reference_type: str | None = Field(
+        default=None,
+        max_length=50,
+    )
+
+    reference_id: str | None = Field(
+        default=None,
+        max_length=120,
+    )
+
+    notes: str | None = Field(
+        default=None,
+        max_length=5000,
+    )
+
+    details: dict[str, Any] = Field(
+        default_factory=dict,
+    )
+
+    @field_validator(
+        "occurred_at",
+        mode="after",
+    )
+    @classmethod
+    def validate_occurred_at(
+        cls,
+        value: datetime | None,
+    ) -> datetime | None:
+        """
+        Require timezone-aware operation timestamps.
+        """
+
+        if (
+            value is not None
+            and (
+                value.tzinfo is None
+                or value.utcoffset() is None
+            )
+        ):
+            raise ValueError(
+                "occurred_at must include a timezone."
+            )
+
+        return value
+
+    @field_validator(
+        "reference_type",
+        "reference_id",
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_text(
+        cls,
+        value: object,
+    ) -> object:
+        """
+        Convert blank optional strings to null.
+        """
+
+        if isinstance(value, str):
+            normalized = value.strip()
+
+            return normalized or None
+
+        return value
+
+
+class ReceiveInventoryStockSchema(
+    InventoryOperationMetadataSchema
+):
+    """
+    Receive purchased stock or establish an opening balance.
+    """
+
+    item_id: uuid.UUID
+    location_id: uuid.UUID
+
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=16,
+        decimal_places=3,
+    )
+
+    unit_cost: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=14,
+        decimal_places=4,
+    )
+
+    currency: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=3,
+    )
+
+    movement_type: InventoryReceiptType = "receipt"
+
+    @field_validator(
+        "currency",
+        mode="before",
+    )
+    @classmethod
+    def normalize_currency(
+        cls,
+        value: object,
+    ) -> object:
+        """
+        Normalize optional receipt currency codes.
+        """
+
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+
+            if (
+                len(normalized) != 3
+                or not normalized.isalpha()
+            ):
+                raise ValueError(
+                    "Currency must contain three letters."
+                )
+
+            return normalized
+
+        return value
+
+
+class IssueInventoryStockSchema(
+    InventoryOperationMetadataSchema
+):
+    """
+    Issue available stock from one location.
+    """
+
+    item_id: uuid.UUID
+    location_id: uuid.UUID
+    work_order_id: uuid.UUID | None = None
+
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=16,
+        decimal_places=3,
+    )
+
+
+class ReturnInventoryStockSchema(
+    InventoryOperationMetadataSchema
+):
+    """
+    Return previously issued stock to a location.
+    """
+
+    item_id: uuid.UUID
+    location_id: uuid.UUID
+    work_order_id: uuid.UUID | None = None
+
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=16,
+        decimal_places=3,
+    )
+
+    unit_cost: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=14,
+        decimal_places=4,
+    )
+
+    currency: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=3,
+    )
+
+    @field_validator(
+        "currency",
+        mode="before",
+    )
+    @classmethod
+    def normalize_currency(
+        cls,
+        value: object,
+    ) -> object:
+        """
+        Normalize optional return currency codes.
+        """
+
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+
+            if (
+                len(normalized) != 3
+                or not normalized.isalpha()
+            ):
+                raise ValueError(
+                    "Currency must contain three letters."
+                )
+
+            return normalized
+
+        return value
+
+
+class AdjustInventoryStockSchema(
+    InventoryOperationMetadataSchema
+):
+    """
+    Increase or decrease an item-location balance by a delta.
+    """
+
+    item_id: uuid.UUID
+    location_id: uuid.UUID
+
+    quantity_delta: Decimal = Field(
+        max_digits=16,
+        decimal_places=3,
+    )
+
+    unit_cost: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=14,
+        decimal_places=4,
+    )
+
+    currency: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=3,
+    )
+
+    @field_validator(
+        "quantity_delta",
+        mode="after",
+    )
+    @classmethod
+    def validate_quantity_delta(
+        cls,
+        value: Decimal,
+    ) -> Decimal:
+        """
+        Reject zero-value stock adjustments.
+        """
+
+        if value == 0:
+            raise ValueError(
+                "quantity_delta cannot be zero."
+            )
+
+        return value
+
+    @field_validator(
+        "currency",
+        mode="before",
+    )
+    @classmethod
+    def normalize_currency(
+        cls,
+        value: object,
+    ) -> object:
+        """
+        Normalize optional adjustment currency codes.
+        """
+
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+
+            if (
+                len(normalized) != 3
+                or not normalized.isalpha()
+            ):
+                raise ValueError(
+                    "Currency must contain three letters."
+                )
+
+            return normalized
+
+        return value
+
+
+class TransferInventoryStockSchema(
+    InventoryOperationMetadataSchema
+):
+    """
+    Transfer available stock between two locations.
+    """
+
+    item_id: uuid.UUID
+    source_location_id: uuid.UUID
+    destination_location_id: uuid.UUID
+    work_order_id: uuid.UUID | None = None
+
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=16,
+        decimal_places=3,
+    )
+
+
+class CreateInventoryReservationSchema(BaseModel):
+    """
+    Reserve available stock for a work order.
+    """
+
+    item_id: uuid.UUID
+    location_id: uuid.UUID
+    work_order_id: uuid.UUID
+
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=16,
+        decimal_places=3,
+    )
+
+    expires_at: datetime | None = None
+
+    notes: str | None = Field(
+        default=None,
+        max_length=5000,
+    )
+
+    details: dict[str, Any] = Field(
+        default_factory=dict,
+    )
+
+    @field_validator(
+        "expires_at",
+        mode="after",
+    )
+    @classmethod
+    def validate_expires_at(
+        cls,
+        value: datetime | None,
+    ) -> datetime | None:
+        """
+        Require timezone-aware reservation expiry timestamps.
+        """
+
+        if (
+            value is not None
+            and (
+                value.tzinfo is None
+                or value.utcoffset() is None
+            )
+        ):
+            raise ValueError(
+                "expires_at must include a timezone."
+            )
+
+        return value
+
+    @field_validator(
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def normalize_notes(
+        cls,
+        value: object,
+    ) -> object:
+        """
+        Convert blank reservation notes to null.
+        """
+
+        if isinstance(value, str):
+            normalized = value.strip()
+
+            return normalized or None
+
+        return value
+
+
+class ConsumeInventoryReservationSchema(BaseModel):
+    """
+    Consume some or all remaining reserved stock.
+    """
+
+    quantity: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=16,
+        decimal_places=3,
+    )
+
+    occurred_at: datetime | None = None
+
+    notes: str | None = Field(
+        default=None,
+        max_length=5000,
+    )
+
+    details: dict[str, Any] = Field(
+        default_factory=dict,
+    )
+
+    @field_validator(
+        "occurred_at",
+        mode="after",
+    )
+    @classmethod
+    def validate_occurred_at(
+        cls,
+        value: datetime | None,
+    ) -> datetime | None:
+        """
+        Require a timezone-aware consumption timestamp.
+        """
+
+        if (
+            value is not None
+            and (
+                value.tzinfo is None
+                or value.utcoffset() is None
+            )
+        ):
+            raise ValueError(
+                "occurred_at must include a timezone."
+            )
+
+        return value
+
+    @field_validator(
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def normalize_notes(
+        cls,
+        value: object,
+    ) -> object:
+        """
+        Convert blank consumption notes to null.
+        """
+
+        if isinstance(value, str):
+            normalized = value.strip()
+
+            return normalized or None
+
+        return value
+
+
+class ReleaseInventoryReservationSchema(BaseModel):
+    """
+    Release all unconsumed stock held by a reservation.
+    """
+
+    notes: str | None = Field(
+        default=None,
+        max_length=5000,
+    )
+
+    details: dict[str, Any] = Field(
+        default_factory=dict,
+    )
+
+    @field_validator(
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def normalize_notes(
+        cls,
+        value: object,
+    ) -> object:
+        """
+        Convert blank release notes to null.
+        """
+
+        if isinstance(value, str):
+            normalized = value.strip()
+
+            return normalized or None
+
+        return value
+
+
+class InventoryMovementResponse(BaseModel):
+    """
+    Immutable stock-movement ledger entry.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    item_id: uuid.UUID
+    location_id: uuid.UUID
+    work_order_id: uuid.UUID | None
+    reservation_id: uuid.UUID | None
+
+    movement_type: InventoryMovementType
+
+    quantity: Decimal
+    quantity_delta: Decimal
+    quantity_before: Decimal
+    quantity_after: Decimal
+
+    unit_cost: Decimal | None
+    currency: str
+
+    reference_type: str | None
+    reference_id: str | None
+    transfer_group_id: uuid.UUID | None
+
+    occurred_at: datetime
+    notes: str | None
+    created_by_user_id: uuid.UUID | None
+    details: dict[str, Any]
+
+    item: InventoryItemSummary
+    location: InventoryLocationSummary
+
+    created_at: datetime
+    updated_at: datetime
+
+
+class InventoryMovementListResponse(BaseModel):
+    """
+    Paginated immutable movement-ledger collection.
+    """
+
+    items: list[InventoryMovementResponse]
+    total: int = Field(ge=0)
+    skip: int = Field(ge=0)
+    limit: int = Field(ge=1)
+
+
+class InventoryReservationResponse(BaseModel):
+    """
+    Work-order stock reservation returned by the API.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    item_id: uuid.UUID
+    location_id: uuid.UUID
+    work_order_id: uuid.UUID
+
+    quantity_reserved: Decimal
+    quantity_consumed: Decimal
+    remaining_quantity: Decimal
+    status: InventoryReservationStatus
+
+    reserved_at: datetime
+    expires_at: datetime | None
+    released_at: datetime | None
+    consumed_at: datetime | None
+
+    notes: str | None
+    created_by_user_id: uuid.UUID | None
+    updated_by_user_id: uuid.UUID | None
+    details: dict[str, Any]
+    is_active: bool
+
+    item: InventoryItemSummary
+    location: InventoryLocationSummary
+
+    created_at: datetime
+    updated_at: datetime
+
+
+class InventoryReservationListResponse(BaseModel):
+    """
+    Paginated stock-reservation collection.
+    """
+
+    items: list[InventoryReservationResponse]
+    total: int = Field(ge=0)
+    skip: int = Field(ge=0)
+    limit: int = Field(ge=1)
+
+
+class InventoryStockOperationResponse(BaseModel):
+    """
+    Result of a one-location stock mutation.
+    """
+
+    movement: InventoryMovementResponse
+    balance: InventoryBalanceResponse
+
+
+class InventoryTransferResponse(BaseModel):
+    """
+    Result of an atomic two-location stock transfer.
+    """
+
+    transfer_group_id: uuid.UUID
+    outbound_movement: InventoryMovementResponse
+    inbound_movement: InventoryMovementResponse
+    source_balance: InventoryBalanceResponse
+    destination_balance: InventoryBalanceResponse
+
+
+class InventoryReservationOperationResponse(BaseModel):
+    """
+    Reservation state plus the affected item-location balance.
+    """
+
+    reservation: InventoryReservationResponse
+    balance: InventoryBalanceResponse
+
+
+class InventoryReservationConsumptionResponse(BaseModel):
+    """
+    Reservation consumption result and immutable issue movement.
+    """
+
+    reservation: InventoryReservationResponse
+    movement: InventoryMovementResponse
+    balance: InventoryBalanceResponse
