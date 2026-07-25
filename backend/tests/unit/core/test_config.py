@@ -29,7 +29,15 @@ def build_settings(**overrides) -> Settings:
     )
 
 
-def test_defaults_are_fail_safe() -> None:
+def test_defaults_are_fail_safe(
+    monkeypatch,
+) -> None:
+    for variable_name in Settings.model_fields:
+        monkeypatch.delenv(
+            variable_name,
+            raising=False,
+        )
+
     settings = Settings(
         _env_file=None,
         DATABASE_URL=DATABASE_URL,
