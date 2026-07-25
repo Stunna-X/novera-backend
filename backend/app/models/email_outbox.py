@@ -21,6 +21,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -42,6 +44,10 @@ class EmailOutbox(BaseModel):
     __tablename__ = "email_outbox"
 
     __table_args__ = (
+        UniqueConstraint(
+            "document_delivery_id",
+            name="uq_email_outbox_document_delivery",
+        ),
         CheckConstraint(
             "provider IN ('development', 'smtp', 'sendgrid', 'mailgun', 'manual')",
             name="ck_email_outbox_provider_valid",
@@ -85,10 +91,6 @@ class EmailOutbox(BaseModel):
             "status",
             "next_attempt_at",
         ),
-        Index(
-            "ix_email_outbox_to_email",
-            "to_email",
-        ),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -109,7 +111,6 @@ class EmailOutbox(BaseModel):
         ),
         nullable=False,
         index=True,
-        unique=True,
     )
 
     queued_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -208,6 +209,7 @@ class EmailOutbox(BaseModel):
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(UTC),
+        server_default=func.now(),
     )
 
     sent_at: Mapped[datetime | None] = mapped_column(
@@ -246,6 +248,21 @@ class EmailOutbox(BaseModel):
         default=True,
         server_default="true",
         index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        nullable=False,
     )
 
     organization: Mapped["Organization"] = relationship(

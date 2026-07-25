@@ -8,7 +8,7 @@ quotes, PDFs, and future email-provider integrations.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
@@ -19,6 +19,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -77,10 +78,6 @@ class DocumentDelivery(BaseModel):
             "ix_document_deliveries_status",
             "organization_id",
             "delivery_status",
-        ),
-        Index(
-            "ix_document_deliveries_recipient_email",
-            "recipient_email",
         ),
     )
 
@@ -190,6 +187,21 @@ class DocumentDelivery(BaseModel):
         default=True,
         server_default="true",
         index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        nullable=False,
     )
 
     organization: Mapped["Organization"] = relationship(

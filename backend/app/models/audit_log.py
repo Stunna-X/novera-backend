@@ -8,13 +8,16 @@ audit events.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
+    DateTime,
     ForeignKey,
     Index,
     String,
     Text,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import (
@@ -61,7 +64,7 @@ class AuditLog(BaseModel):
             "actor_user_id",
         ),
         Index(
-            "ix_audit_logs_status",
+            "ix_audit_logs_status_composite",
             "organization_id",
             "status",
         ),
@@ -153,6 +156,21 @@ class AuditLog(BaseModel):
         nullable=False,
         default=dict,
         server_default="{}",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        nullable=False,
     )
 
     organization: Mapped["Organization"] = relationship(

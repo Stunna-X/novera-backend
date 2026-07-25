@@ -132,6 +132,7 @@ class WorkOrderCloseout(BaseModel):
         String(30),
         nullable=False,
         default="submitted",
+        server_default="submitted",
         index=True,
     )
 
@@ -224,6 +225,7 @@ class WorkOrderCloseout(BaseModel):
         Boolean,
         nullable=False,
         default=False,
+        server_default="false",
         index=True,
     )
 
