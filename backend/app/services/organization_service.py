@@ -29,21 +29,6 @@ from app.utils.slug import slugify
 
 OWNER_ROLE_NAME = "Owner"
 
-DOCUMENT_SETTING_FIELDS = [
-    "business_address",
-    "tax_identification_number",
-    "vat_number",
-    "bank_name",
-    "bank_account_name",
-    "bank_account_number",
-    "bank_routing_number",
-    "payment_instructions",
-    "default_invoice_terms",
-    "default_quote_terms",
-    "invoice_footer",
-    "quote_footer",
-]
-
 
 class OrganizationService:
     """
@@ -67,7 +52,10 @@ class OrganizationService:
         value: str | None,
     ) -> str | None:
         """
-        Normalize optional organization document-setting text.
+        Normalize optional organization text.
+
+        Leading and trailing whitespace is removed.
+        Empty and whitespace-only values become null.
         """
 
         if value is None:
@@ -172,21 +160,15 @@ class OrganizationService:
                     if payload.email
                     else None
                 ),
-                phone=(
-                    payload.phone.strip()
-                    if payload.phone
-                    else None
+                phone=self._clean_optional_text(
+                    payload.phone
                 ),
-                country=(
-                    payload.country.strip()
-                    if payload.country
-                    else None
+                country=self._clean_optional_text(
+                    payload.country
                 ),
                 timezone=payload.timezone.strip(),
-                logo_url=(
-                    payload.logo_url.strip()
-                    if payload.logo_url
-                    else None
+                logo_url=self._clean_optional_text(
+                    payload.logo_url
                 ),
                 business_address=self._clean_optional_text(
                     payload.business_address
@@ -226,7 +208,9 @@ class OrganizationService:
                 ),
             )
 
-            self.db.add(organization)
+            self.db.add(
+                organization
+            )
             self.db.flush()
 
             membership = Membership(
@@ -235,9 +219,13 @@ class OrganizationService:
                 role_id=owner_role.id,
             )
 
-            self.db.add(membership)
+            self.db.add(
+                membership
+            )
             self.db.commit()
-            self.db.refresh(organization)
+            self.db.refresh(
+                organization
+            )
 
             return organization
 
@@ -265,7 +253,9 @@ class OrganizationService:
         """
 
         return (
-            self.db.query(Organization)
+            self.db.query(
+                Organization
+            )
             .join(
                 Membership,
                 Membership.organization_id
@@ -288,9 +278,11 @@ class OrganizationService:
         payload: UpdateOrganizationSchema,
     ) -> Organization:
         """
-        Update organization details.
+        Update general organization details.
 
         The slug remains stable when the organization name changes.
+        Sensitive document settings are managed through their
+        dedicated service and API endpoints.
         """
 
         update_data = payload.model_dump(
@@ -298,13 +290,18 @@ class OrganizationService:
         )
 
         if "name" in update_data:
-            organization.name = update_data["name"].strip()
+            organization.name = (
+                update_data["name"].strip()
+            )
 
         if "industry" in update_data:
-            organization.industry = update_data["industry"]
+            organization.industry = (
+                update_data["industry"]
+            )
 
         if "email" in update_data:
             email = update_data["email"]
+
             organization.email = (
                 str(email).lower()
                 if email
@@ -312,43 +309,29 @@ class OrganizationService:
             )
 
         if "phone" in update_data:
-            phone = update_data["phone"]
             organization.phone = (
-                phone.strip()
-                if phone
-                else None
+                self._clean_optional_text(
+                    update_data["phone"]
+                )
             )
 
         if "country" in update_data:
-            country = update_data["country"]
             organization.country = (
-                country.strip()
-                if country
-                else None
+                self._clean_optional_text(
+                    update_data["country"]
+                )
             )
 
         if "timezone" in update_data:
-            timezone = update_data["timezone"]
-            organization.timezone = timezone.strip()
-
-        if "logo_url" in update_data:
-            logo_url = update_data["logo_url"]
-            organization.logo_url = (
-                logo_url.strip()
-                if logo_url
-                else None
+            organization.timezone = (
+                update_data["timezone"].strip()
             )
 
-        for field_name in DOCUMENT_SETTING_FIELDS:
-            if field_name not in update_data:
-                continue
-
-            setattr(
-                organization,
-                field_name,
+        if "logo_url" in update_data:
+            organization.logo_url = (
                 self._clean_optional_text(
-                    update_data[field_name]
-                ),
+                    update_data["logo_url"]
+                )
             )
 
         return self.organizations.update_organization(
