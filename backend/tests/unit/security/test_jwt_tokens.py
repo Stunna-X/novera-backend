@@ -62,8 +62,17 @@ def test_token_type_helpers_reject_the_wrong_token_type() -> None:
 
 def test_tampered_token_is_rejected() -> None:
     token = create_access_token({"sub": str(uuid.uuid4())})
-    replacement = "a" if token[-1] != "a" else "b"
-    tampered = token[:-1] + replacement
+
+    header, payload, signature = token.split(".")
+    replacement = "a" if signature[0] != "a" else "b"
+    tampered_signature = replacement + signature[1:]
+    tampered = ".".join(
+        (
+            header,
+            payload,
+            tampered_signature,
+        )
+    )
 
     assert verify_access_token(tampered) is None
 
