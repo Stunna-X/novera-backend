@@ -1,0 +1,1 @@
+"""Email outbox API package."""

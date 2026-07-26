@@ -14,3 +14,15 @@ data/output/
 data/
 *.csv
 
+
+
+# Keep the public environment template
+!/backend/.env.example
+
+# Generated development email messages
+/backend/var/
+
+# Python test artifacts
+/backend/.pytest_cache/
+/backend/.coverage
+/backend/htmlcov/
