@@ -103,6 +103,8 @@ def create_inventory_location(
     return service.create_location(
         organization_id=context.organization.id,
         payload=payload,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -213,6 +215,8 @@ def update_inventory_location(
         organization_id=context.organization.id,
         location_id=location_id,
         payload=payload,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -244,6 +248,8 @@ def deactivate_inventory_location(
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -271,6 +277,8 @@ def reactivate_inventory_location(
     return service.reactivate_location(
         organization_id=context.organization.id,
         location_id=location_id,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -304,6 +312,8 @@ def create_inventory_item(
     return service.create_item(
         organization_id=context.organization.id,
         payload=payload,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -424,6 +434,8 @@ def update_inventory_item(
         organization_id=context.organization.id,
         item_id=item_id,
         payload=payload,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -455,6 +467,8 @@ def deactivate_inventory_item(
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -482,6 +496,8 @@ def reactivate_inventory_item(
     return service.reactivate_item(
         organization_id=context.organization.id,
         item_id=item_id,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -692,6 +708,7 @@ def receive_inventory_stock(
         organization_id=context.organization.id,
         payload=payload,
         actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -721,6 +738,7 @@ def issue_inventory_stock(
         organization_id=context.organization.id,
         payload=payload,
         actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -750,6 +768,7 @@ def return_inventory_stock(
         organization_id=context.organization.id,
         payload=payload,
         actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -779,6 +798,7 @@ def adjust_inventory_stock(
         organization_id=context.organization.id,
         payload=payload,
         actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -808,6 +828,7 @@ def transfer_inventory_stock(
         organization_id=context.organization.id,
         payload=payload,
         actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -949,6 +970,7 @@ def create_inventory_reservation(
         organization_id=context.organization.id,
         payload=payload,
         actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -1067,6 +1089,7 @@ def consume_inventory_reservation(
         reservation_id=reservation_id,
         payload=payload,
         actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
@@ -1097,4 +1120,5 @@ def release_inventory_reservation(
         reservation_id=reservation_id,
         payload=payload,
         actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
