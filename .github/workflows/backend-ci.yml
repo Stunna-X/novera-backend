@@ -8,6 +8,7 @@ on:
     paths:
       - "backend/**"
       - ".github/workflows/backend-ci.yml"
+
   pull_request:
     branches:
       - main
@@ -36,13 +37,13 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_DB: novera_ci
+          POSTGRES_DB: novera_test_ci
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d novera_ci"
+          --health-cmd "pg_isready -U postgres -d novera_test_ci"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -52,11 +53,14 @@ jobs:
       DEBUG: "false"
       ENABLE_API_DOCS: "true"
       LOG_JSON: "false"
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/novera_ci
-      TEST_DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/novera_ci
+
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/novera_test_ci
+      TEST_DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/novera_test_ci
+
       SECRET_KEY: ci-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
       EMAIL_PROVIDER: manual
-      CORS_ORIGINS: '["https://frontend.ci.novera.app"]'
+
+      CORS_ORIGINS: '["https://frontend.api-smoke.test","https://frontend.ci.novera.app"]'
 
     steps:
       - name: Check out repository
