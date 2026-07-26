@@ -1,13 +1,17 @@
 """
 Organization routes.
 
-Provides authenticated endpoints for creating, viewing,
-updating, and deactivating organizations.
+Provides authenticated endpoints for creating, viewing, updating, and
+deactivating organizations, plus protected document settings.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -22,6 +26,13 @@ from app.schemas.organization import (
     CreateOrganizationSchema,
     OrganizationResponse,
     UpdateOrganizationSchema,
+)
+from app.schemas.organization_document_settings import (
+    OrganizationDocumentSettingsResponse,
+    UpdateOrganizationDocumentSettingsSchema,
+)
+from app.services.organization_document_settings_service import (
+    OrganizationDocumentSettingsService,
 )
 from app.services.organization_service import OrganizationService
 
@@ -40,14 +51,17 @@ router = APIRouter(
 )
 def create_organization(
     payload: CreateOrganizationSchema,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+    db: Session = Depends(
+        get_db
+    ),
 ) -> Organization:
     """
     Create a new organization.
 
-    The authenticated user automatically becomes the
-    Owner of the organization.
+    The authenticated user automatically becomes the Owner.
     """
 
     service = OrganizationService(db)
@@ -64,11 +78,17 @@ def create_organization(
     summary="List my organizations",
 )
 def list_organizations(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+    db: Session = Depends(
+        get_db
+    ),
 ) -> list[Organization]:
     """
-    Return all active organizations that the current user belongs to.
+    Return active organizations belonging to the current user.
+
+    Sensitive document settings are excluded.
     """
 
     service = OrganizationService(db)
@@ -85,11 +105,13 @@ def list_organizations(
 )
 def get_organization(
     context: OrganizationContext = Depends(
-        require_permission("organizations.read")
+        require_permission(
+            "organizations.read"
+        )
     ),
 ) -> Organization:
     """
-    Return one organization that the current user belongs to.
+    Return safe general organization details.
 
     Requires:
     - organizations.read
@@ -106,12 +128,18 @@ def get_organization(
 def update_organization(
     payload: UpdateOrganizationSchema,
     context: OrganizationContext = Depends(
-        require_permission("organizations.update")
+        require_permission(
+            "organizations.update"
+        )
     ),
-    db: Session = Depends(get_db),
+    db: Session = Depends(
+        get_db
+    ),
 ) -> Organization:
     """
-    Update organization details.
+    Update general organization details.
+
+    Sensitive document settings must use the dedicated endpoint.
 
     Requires:
     - organizations.update
@@ -125,6 +153,75 @@ def update_organization(
     )
 
 
+@router.get(
+    "/{organization_id}/document-settings",
+    response_model=OrganizationDocumentSettingsResponse,
+    summary="Get organization document settings",
+)
+def get_organization_document_settings(
+    context: OrganizationContext = Depends(
+        require_permission(
+            "organizations.update"
+        )
+    ),
+    db: Session = Depends(
+        get_db
+    ),
+) -> OrganizationDocumentSettingsResponse:
+    """
+    Return protected tax, banking, payment, invoice, and quote settings.
+
+    Requires:
+    - organizations.update
+    """
+
+    service = OrganizationDocumentSettingsService(
+        db
+    )
+
+    return service.get_settings(
+        organization=context.organization,
+    )
+
+
+@router.patch(
+    "/{organization_id}/document-settings",
+    response_model=OrganizationDocumentSettingsResponse,
+    summary="Update organization document settings",
+)
+def update_organization_document_settings(
+    payload: UpdateOrganizationDocumentSettingsSchema,
+    context: OrganizationContext = Depends(
+        require_permission(
+            "organizations.update"
+        )
+    ),
+    db: Session = Depends(
+        get_db
+    ),
+) -> OrganizationDocumentSettingsResponse:
+    """
+    Update protected organization document settings.
+
+    An audit event records the changed field names without storing
+    sensitive banking or tax values.
+
+    Requires:
+    - organizations.update
+    """
+
+    service = OrganizationDocumentSettingsService(
+        db
+    )
+
+    return service.update_settings(
+        organization=context.organization,
+        payload=payload,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
+    )
+
+
 @router.patch(
     "/{organization_id}/deactivate",
     response_model=OrganizationResponse,
@@ -132,9 +229,13 @@ def update_organization(
 )
 def deactivate_organization(
     context: OrganizationContext = Depends(
-        require_permission("organizations.deactivate")
+        require_permission(
+            "organizations.deactivate"
+        )
     ),
-    db: Session = Depends(get_db),
+    db: Session = Depends(
+        get_db
+    ),
 ) -> Organization:
     """
     Deactivate an organization.

@@ -1,4 +1,4 @@
-"""Unit tests for organization onboarding and updates."""
+"""Unit tests for organization onboarding and general updates."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 import app.services.organization_service as organization_service_module
@@ -25,17 +26,32 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def service() -> OrganizationService:
-    instance = OrganizationService(MagicMock())
+    instance = OrganizationService(
+        MagicMock()
+    )
     instance.organizations = MagicMock()
     instance.roles = MagicMock()
+
     return instance
 
 
 def test_clean_optional_text_normalizes_blank_values() -> None:
-    assert OrganizationService._clean_optional_text(None) is None
-    assert OrganizationService._clean_optional_text("   ") is None
     assert (
-        OrganizationService._clean_optional_text("  Value  ")
+        OrganizationService._clean_optional_text(
+            None
+        )
+        is None
+    )
+    assert (
+        OrganizationService._clean_optional_text(
+            "   "
+        )
+        is None
+    )
+    assert (
+        OrganizationService._clean_optional_text(
+            "  Value  "
+        )
         == "Value"
     )
 
@@ -49,7 +65,9 @@ def test_unique_slug_adds_incrementing_suffix(
         False,
     ]
 
-    slug = service._generate_unique_slug("Acme Field Services")
+    slug = service._generate_unique_slug(
+        "Acme Field Services"
+    )
 
     assert slug == "acme-field-services-3"
     assert (
@@ -68,8 +86,12 @@ def test_invalid_organization_name_slug_is_rejected(
         lambda value: "",
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        service._generate_unique_slug("   ")
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        service._generate_unique_slug(
+            "   "
+        )
 
     assert exc_info.value.status_code == 422
 
@@ -82,7 +104,9 @@ def test_existing_owner_role_is_reused(
         name="Owner",
         is_system=True,
     )
-    service.roles.get_by_name.return_value = owner_role
+    service.roles.get_by_name.return_value = (
+        owner_role
+    )
 
     result = service._get_or_create_owner_role()
 
@@ -96,32 +120,52 @@ def test_missing_owner_role_is_bootstrapped(
 ) -> None:
     service.roles.get_by_name.return_value = None
 
-    owner_role = service._get_or_create_owner_role()
+    owner_role = (
+        service._get_or_create_owner_role()
+    )
 
     assert owner_role.name == "Owner"
     assert owner_role.is_system is True
-    service.db.add.assert_called_once_with(owner_role)
+    service.db.add.assert_called_once_with(
+        owner_role
+    )
     service.db.flush.assert_called_once_with()
 
 
 def test_create_organization_commits_owner_membership_atomically(
     service: OrganizationService,
 ) -> None:
-    current_user = SimpleNamespace(id=uuid.uuid4())
+    current_user = SimpleNamespace(
+        id=uuid.uuid4()
+    )
     owner_role = SimpleNamespace(
         id=uuid.uuid4(),
         name="Owner",
     )
-    service.roles.get_by_name.return_value = owner_role
-    service.organizations.slug_exists.return_value = False
+
+    service.roles.get_by_name.return_value = (
+        owner_role
+    )
+    service.organizations.slug_exists.return_value = (
+        False
+    )
 
     def assign_organization_id() -> None:
         for call in service.db.add.call_args_list:
             model = call.args[0]
-            if isinstance(model, Organization) and model.id is None:
+
+            if (
+                isinstance(
+                    model,
+                    Organization,
+                )
+                and model.id is None
+            ):
                 model.id = uuid.uuid4()
 
-    service.db.flush.side_effect = assign_organization_id
+    service.db.flush.side_effect = (
+        assign_organization_id
+    )
 
     result = service.create_organization(
         payload=CreateOrganizationSchema(
@@ -131,6 +175,8 @@ def test_create_organization_commits_owner_membership_atomically(
             country="  Nigeria  ",
             timezone="  Africa/Lagos  ",
             business_address="  Abuja  ",
+            bank_name="  Novera Bank  ",
+            invoice_footer="  Thank you  ",
         ),
         current_user=current_user,
     )
@@ -139,10 +185,14 @@ def test_create_organization_commits_owner_membership_atomically(
         call.args[0]
         for call in service.db.add.call_args_list
     ]
+
     membership = next(
         model
         for model in added_models
-        if isinstance(model, Membership)
+        if isinstance(
+            model,
+            Membership,
+        )
     )
 
     assert result.name == "Acme Field Services"
@@ -152,21 +202,43 @@ def test_create_organization_commits_owner_membership_atomically(
     assert result.country == "Nigeria"
     assert result.timezone == "Africa/Lagos"
     assert result.business_address == "Abuja"
-    assert membership.organization_id == result.id
-    assert membership.user_id == current_user.id
-    assert membership.role_id == owner_role.id
+    assert result.bank_name == "Novera Bank"
+    assert result.invoice_footer == "Thank you"
+
+    assert (
+        membership.organization_id
+        == result.id
+    )
+    assert (
+        membership.user_id
+        == current_user.id
+    )
+    assert (
+        membership.role_id
+        == owner_role.id
+    )
+
     service.db.commit.assert_called_once_with()
-    service.db.refresh.assert_called_once_with(result)
+    service.db.refresh.assert_called_once_with(
+        result
+    )
 
 
 def test_create_organization_rolls_back_on_integrity_error(
     service: OrganizationService,
 ) -> None:
-    current_user = SimpleNamespace(id=uuid.uuid4())
-    service.organizations.slug_exists.return_value = False
-    service.roles.get_by_name.return_value = SimpleNamespace(
-        id=uuid.uuid4(),
-        name="Owner",
+    current_user = SimpleNamespace(
+        id=uuid.uuid4()
+    )
+
+    service.organizations.slug_exists.return_value = (
+        False
+    )
+    service.roles.get_by_name.return_value = (
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            name="Owner",
+        )
     )
     service.db.flush.side_effect = IntegrityError(
         "INSERT",
@@ -174,7 +246,9 @@ def test_create_organization_rolls_back_on_integrity_error(
         Exception("duplicate"),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
         service.create_organization(
             payload=CreateOrganizationSchema(
                 name="Acme Field Services",
@@ -187,7 +261,7 @@ def test_create_organization_rolls_back_on_integrity_error(
     service.db.commit.assert_not_called()
 
 
-def test_update_preserves_slug_and_normalizes_fields(
+def test_update_preserves_slug_and_normalizes_general_fields(
     service: OrganizationService,
 ) -> None:
     organization = SimpleNamespace(
@@ -198,20 +272,9 @@ def test_update_preserves_slug_and_normalizes_fields(
         phone=None,
         country=None,
         timezone="UTC",
-        logo_url=None,
-        business_address=None,
-        tax_identification_number=None,
-        vat_number=None,
-        bank_name=None,
-        bank_account_name=None,
-        bank_account_number=None,
-        bank_routing_number=None,
-        payment_instructions=None,
-        default_invoice_terms=None,
-        default_quote_terms=None,
-        invoice_footer=None,
-        quote_footer=None,
+        logo_url="https://example.com/old.png",
     )
+
     service.organizations.update_organization.side_effect = (
         lambda model: model
     )
@@ -223,8 +286,7 @@ def test_update_preserves_slug_and_normalizes_fields(
             phone="  +2348111111111  ",
             country="  Nigeria  ",
             timezone="  Africa/Lagos  ",
-            business_address="   ",
-            invoice_footer="  Thank you  ",
+            logo_url="   ",
         ),
     )
 
@@ -233,16 +295,43 @@ def test_update_preserves_slug_and_normalizes_fields(
     assert result.phone == "+2348111111111"
     assert result.country == "Nigeria"
     assert result.timezone == "Africa/Lagos"
-    assert result.business_address is None
-    assert result.invoice_footer == "Thank you"
+    assert result.logo_url is None
+
+    service.organizations.update_organization.assert_called_once_with(
+        organization
+    )
+
+
+def test_general_update_schema_rejects_document_settings() -> None:
+    with pytest.raises(
+        ValidationError
+    ) as exc_info:
+        UpdateOrganizationSchema(
+            bank_account_number="0123456789",
+            invoice_footer="Thank you",
+        )
+
+    errors = exc_info.value.errors()
+
+    assert {
+        error["loc"][0]
+        for error in errors
+    } == {
+        "bank_account_number",
+        "invoice_footer",
+    }
 
 
 def test_deactivate_is_idempotent(
     service: OrganizationService,
 ) -> None:
-    organization = SimpleNamespace(is_active=False)
+    organization = SimpleNamespace(
+        is_active=False
+    )
 
-    result = service.deactivate_organization(organization)
+    result = service.deactivate_organization(
+        organization
+    )
 
     assert result is organization
     service.organizations.deactivate.assert_not_called()
@@ -251,10 +340,16 @@ def test_deactivate_is_idempotent(
 def test_deactivate_active_organization_uses_repository(
     service: OrganizationService,
 ) -> None:
-    organization = SimpleNamespace(is_active=True)
-    service.organizations.deactivate.return_value = organization
+    organization = SimpleNamespace(
+        is_active=True
+    )
+    service.organizations.deactivate.return_value = (
+        organization
+    )
 
-    result = service.deactivate_organization(organization)
+    result = service.deactivate_organization(
+        organization
+    )
 
     assert result is organization
     service.organizations.deactivate.assert_called_once_with(
