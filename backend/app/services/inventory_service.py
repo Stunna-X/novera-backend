@@ -34,6 +34,7 @@ from app.repositories.inventory import (
     LowStockRecord,
 )
 from app.repositories.work_order import WorkOrderRepository
+from app.schemas.audit_log import AuditLogCreate
 from app.schemas.inventory import (
     AdjustInventoryStockSchema,
     ConsumeInventoryReservationSchema,
@@ -59,6 +60,7 @@ from app.schemas.inventory import (
     UpdateInventoryItemSchema,
     UpdateInventoryLocationSchema,
 )
+from app.services.audit_log_service import AuditLogService
 
 
 QUANTITY_QUANTIZER = Decimal("0.001")
@@ -78,6 +80,7 @@ class InventoryService:
         self.db = db
         self.inventory = InventoryRepository(db)
         self.work_orders = WorkOrderRepository(db)
+        self.audit_logs = AuditLogService(db)
 
     def _rollback_and_raise_conflict(
         self,
@@ -105,6 +108,60 @@ class InventoryService:
 
         self.db.rollback()
         raise exc
+
+    @staticmethod
+    def _audit_details(
+        **values: Any,
+    ) -> dict[str, Any]:
+        """
+        Build a JSON-safe audit payload without free-text values.
+        """
+
+        details: dict[str, Any] = {}
+
+        for key, value in values.items():
+            if value is None:
+                continue
+
+            details[key] = (
+                str(value)
+                if isinstance(value, uuid.UUID)
+                else value
+            )
+
+        return details
+
+    def _record_audit_event(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        actor_user_id: uuid.UUID | None,
+        actor_membership_id: uuid.UUID | None,
+        action: str,
+        entity_type: str,
+        entity_id: uuid.UUID,
+        summary: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Add one immutable audit event to the current transaction.
+        """
+
+        self.audit_logs.record_event(
+            organization_id=organization_id,
+            payload=AuditLogCreate(
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action=action,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                summary=summary,
+                status="success",
+                details=details or {},
+            ),
+            commit=False,
+        )
+
 
     # ------------------------------------------------------------------
     # Locations
@@ -167,6 +224,9 @@ class InventoryService:
         self,
         organization_id: uuid.UUID,
         payload: CreateInventoryLocationSchema,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryLocation:
         """
         Create an inventory location.
@@ -188,6 +248,19 @@ class InventoryService:
             created = self.inventory.create_location(
                 location
             )
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_location_created",
+                entity_type="inventory_location",
+                entity_id=created.id,
+                summary="Inventory location created.",
+                details=self._audit_details(
+                    location_type=created.location_type,
+                ),
+            )
+
             self.db.commit()
             self.db.refresh(created)
 
@@ -204,6 +277,10 @@ class InventoryService:
 
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
+
+        except Exception:
+            self.db.rollback()
+            raise
 
     def list_locations(
         self,
@@ -268,6 +345,9 @@ class InventoryService:
         organization_id: uuid.UUID,
         location_id: uuid.UUID,
         payload: UpdateInventoryLocationSchema,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryLocation:
         """
         Update an active inventory location.
@@ -325,6 +405,19 @@ class InventoryService:
             updated = self.inventory.update_location(
                 location
             )
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_location_updated",
+                entity_type="inventory_location",
+                entity_id=updated.id,
+                summary="Inventory location updated.",
+                details=self._audit_details(
+                    changed_fields=sorted(update_data),
+                ),
+            )
+
             self.db.commit()
             self.db.refresh(updated)
 
@@ -342,10 +435,17 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def deactivate_location(
         self,
         organization_id: uuid.UUID,
         location_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> None:
         """
         Soft-delete an inventory location with no remaining stock.
@@ -385,6 +485,16 @@ class InventoryService:
             self.inventory.deactivate_location(
                 location
             )
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_location_deactivated",
+                entity_type="inventory_location",
+                entity_id=location.id,
+                summary="Inventory location deactivated.",
+            )
+
             self.db.commit()
 
         except IntegrityError as exc:
@@ -399,10 +509,17 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def reactivate_location(
         self,
         organization_id: uuid.UUID,
         location_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryLocation:
         """
         Reactivate an inventory location.
@@ -424,6 +541,16 @@ class InventoryService:
                     location
                 )
             )
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_location_reactivated",
+                entity_type="inventory_location",
+                entity_id=reactivated.id,
+                summary="Inventory location reactivated.",
+            )
+
             self.db.commit()
             self.db.refresh(reactivated)
 
@@ -440,6 +567,10 @@ class InventoryService:
 
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
+
+        except Exception:
+            self.db.rollback()
+            raise
 
     # ------------------------------------------------------------------
     # Catalogue items
@@ -544,6 +675,9 @@ class InventoryService:
         self,
         organization_id: uuid.UUID,
         payload: CreateInventoryItemSchema,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryItem:
         """
         Create an inventory catalogue item.
@@ -572,6 +706,19 @@ class InventoryService:
             )
             created_id = created.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_item_created",
+                entity_type="inventory_item",
+                entity_id=created.id,
+                summary="Inventory item created.",
+                details=self._audit_details(
+                    item_type=created.item_type,
+                ),
+            )
+
             self.db.commit()
 
             return self._reload_item(
@@ -590,6 +737,10 @@ class InventoryService:
 
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
+
+        except Exception:
+            self.db.rollback()
+            raise
 
     def list_items(
         self,
@@ -663,6 +814,9 @@ class InventoryService:
         organization_id: uuid.UUID,
         item_id: uuid.UUID,
         payload: UpdateInventoryItemSchema,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryItem:
         """
         Update an active inventory catalogue item.
@@ -734,6 +888,19 @@ class InventoryService:
             )
             updated_id = updated.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_item_updated",
+                entity_type="inventory_item",
+                entity_id=updated.id,
+                summary="Inventory item updated.",
+                details=self._audit_details(
+                    changed_fields=sorted(update_data),
+                ),
+            )
+
             self.db.commit()
 
             return self._reload_item(
@@ -753,10 +920,17 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def deactivate_item(
         self,
         organization_id: uuid.UUID,
         item_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> None:
         """
         Soft-delete an inventory item with no remaining stock.
@@ -796,6 +970,16 @@ class InventoryService:
             self.inventory.deactivate_item(
                 item
             )
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_item_deactivated",
+                entity_type="inventory_item",
+                entity_id=item.id,
+                summary="Inventory item deactivated.",
+            )
+
             self.db.commit()
 
         except IntegrityError as exc:
@@ -810,10 +994,17 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def reactivate_item(
         self,
         organization_id: uuid.UUID,
         item_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryItem:
         """
         Reactivate an inventory catalogue item.
@@ -835,6 +1026,16 @@ class InventoryService:
             )
             reactivated_id = reactivated.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_item_reactivated",
+                entity_type="inventory_item",
+                entity_id=reactivated.id,
+                summary="Inventory item reactivated.",
+            )
+
             self.db.commit()
 
             return self._reload_item(
@@ -850,6 +1051,10 @@ class InventoryService:
 
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
+
+        except Exception:
+            self.db.rollback()
+            raise
 
     # ------------------------------------------------------------------
     # Balances and low-stock reporting
@@ -1486,6 +1691,7 @@ class InventoryService:
         payload: ReceiveInventoryStockSchema,
         *,
         actor_user_id: uuid.UUID,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryStockOperationResponse:
         """
         Receive stock or establish an opening balance atomically.
@@ -1598,6 +1804,21 @@ class InventoryService:
             movement_id = movement.id
             balance_id = balance.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_stock_received",
+                entity_type="inventory_movement",
+                entity_id=movement.id,
+                summary="Inventory stock received.",
+                details=self._audit_details(
+                    item_id=item.id,
+                    location_id=payload.location_id,
+                    movement_type=movement.movement_type,
+                ),
+            )
+
             self.db.commit()
 
             return self._reload_operation_result(
@@ -1615,12 +1836,17 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def issue_stock(
         self,
         organization_id: uuid.UUID,
         payload: IssueInventoryStockSchema,
         *,
         actor_user_id: uuid.UUID,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryStockOperationResponse:
         """
         Issue unreserved stock from one location atomically.
@@ -1701,6 +1927,22 @@ class InventoryService:
             movement_id = movement.id
             balance_id = balance.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_stock_issued",
+                entity_type="inventory_movement",
+                entity_id=movement.id,
+                summary="Inventory stock issued.",
+                details=self._audit_details(
+                    item_id=item.id,
+                    location_id=payload.location_id,
+                    work_order_id=payload.work_order_id,
+                    movement_type=movement.movement_type,
+                ),
+            )
+
             self.db.commit()
 
             return self._reload_operation_result(
@@ -1718,12 +1960,17 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def return_stock(
         self,
         organization_id: uuid.UUID,
         payload: ReturnInventoryStockSchema,
         *,
         actor_user_id: uuid.UUID,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryStockOperationResponse:
         """
         Return stock to one location atomically.
@@ -1824,6 +2071,22 @@ class InventoryService:
             movement_id = movement.id
             balance_id = balance.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_stock_returned",
+                entity_type="inventory_movement",
+                entity_id=movement.id,
+                summary="Inventory stock returned.",
+                details=self._audit_details(
+                    item_id=item.id,
+                    location_id=payload.location_id,
+                    work_order_id=payload.work_order_id,
+                    movement_type=movement.movement_type,
+                ),
+            )
+
             self.db.commit()
 
             return self._reload_operation_result(
@@ -1841,12 +2104,17 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def adjust_stock(
         self,
         organization_id: uuid.UUID,
         payload: AdjustInventoryStockSchema,
         *,
         actor_user_id: uuid.UUID,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryStockOperationResponse:
         """
         Apply a signed item-location stock adjustment.
@@ -1969,6 +2237,21 @@ class InventoryService:
             movement_id = movement.id
             balance_id = balance.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_stock_adjusted",
+                entity_type="inventory_movement",
+                entity_id=movement.id,
+                summary="Inventory stock adjusted.",
+                details=self._audit_details(
+                    item_id=item.id,
+                    location_id=payload.location_id,
+                    movement_type=movement.movement_type,
+                ),
+            )
+
             self.db.commit()
 
             return self._reload_operation_result(
@@ -1986,12 +2269,17 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def transfer_stock(
         self,
         organization_id: uuid.UUID,
         payload: TransferInventoryStockSchema,
         *,
         actor_user_id: uuid.UUID,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryTransferResponse:
         """
         Transfer available stock between locations atomically.
@@ -2190,6 +2478,26 @@ class InventoryService:
             source_balance_id = source_balance.id
             destination_balance_id = destination_balance.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_stock_transferred",
+                entity_type="inventory_transfer",
+                entity_id=transfer_group_id,
+                summary="Inventory stock transferred.",
+                details=self._audit_details(
+                    item_id=item.id,
+                    source_location_id=payload.source_location_id,
+                    destination_location_id=(
+                        payload.destination_location_id
+                    ),
+                    work_order_id=payload.work_order_id,
+                    outbound_movement_id=outbound_id,
+                    inbound_movement_id=inbound_id,
+                ),
+            )
+
             self.db.commit()
 
             return InventoryTransferResponse(
@@ -2226,6 +2534,10 @@ class InventoryService:
 
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
+
+        except Exception:
+            self.db.rollback()
+            raise
 
     # ------------------------------------------------------------------
     # Movement ledger queries
@@ -2322,6 +2634,7 @@ class InventoryService:
         payload: CreateInventoryReservationSchema,
         *,
         actor_user_id: uuid.UUID,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryReservationOperationResponse:
         """
         Reserve currently available stock for a work order.
@@ -2403,6 +2716,22 @@ class InventoryService:
             reservation_id = reservation.id
             balance_id = balance.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_reservation_created",
+                entity_type="inventory_reservation",
+                entity_id=reservation.id,
+                summary="Inventory reservation created.",
+                details=self._audit_details(
+                    item_id=item.id,
+                    location_id=payload.location_id,
+                    work_order_id=payload.work_order_id,
+                    status=reservation.status,
+                ),
+            )
+
             self.db.commit()
 
             return InventoryReservationOperationResponse(
@@ -2424,6 +2753,10 @@ class InventoryService:
 
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
+
+        except Exception:
+            self.db.rollback()
+            raise
 
     def list_reservations(
         self,
@@ -2496,6 +2829,7 @@ class InventoryService:
         payload: ConsumeInventoryReservationSchema,
         *,
         actor_user_id: uuid.UUID,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryReservationConsumptionResponse:
         """
         Consume some or all remaining reserved stock.
@@ -2657,6 +2991,23 @@ class InventoryService:
             movement_id = movement.id
             balance_id = balance.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_reservation_consumed",
+                entity_type="inventory_reservation",
+                entity_id=reservation.id,
+                summary="Inventory reservation consumed.",
+                details=self._audit_details(
+                    item_id=reservation.item_id,
+                    location_id=reservation.location_id,
+                    work_order_id=reservation.work_order_id,
+                    movement_id=movement.id,
+                    status=reservation.status,
+                ),
+            )
+
             self.db.commit()
 
             return InventoryReservationConsumptionResponse(
@@ -2685,6 +3036,10 @@ class InventoryService:
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
 
+        except Exception:
+            self.db.rollback()
+            raise
+
     def release_reservation(
         self,
         organization_id: uuid.UUID,
@@ -2692,6 +3047,7 @@ class InventoryService:
         payload: ReleaseInventoryReservationSchema,
         *,
         actor_user_id: uuid.UUID,
+        actor_membership_id: uuid.UUID | None = None,
     ) -> InventoryReservationOperationResponse:
         """
         Release all remaining stock held by a reservation.
@@ -2777,6 +3133,22 @@ class InventoryService:
             persisted_reservation_id = reservation.id
             balance_id = balance.id
 
+            self._record_audit_event(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action="inventory_reservation_released",
+                entity_type="inventory_reservation",
+                entity_id=reservation.id,
+                summary="Inventory reservation released.",
+                details=self._audit_details(
+                    item_id=reservation.item_id,
+                    location_id=reservation.location_id,
+                    work_order_id=reservation.work_order_id,
+                    status=reservation.status,
+                ),
+            )
+
             self.db.commit()
 
             return InventoryReservationOperationResponse(
@@ -2800,3 +3172,7 @@ class InventoryService:
 
         except SQLAlchemyError as exc:
             self._rollback_and_reraise(exc)
+
+        except Exception:
+            self.db.rollback()
+            raise

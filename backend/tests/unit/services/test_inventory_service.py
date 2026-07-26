@@ -82,6 +82,7 @@ def service() -> InventoryService:
     instance = InventoryService(db)
     instance.inventory = MagicMock()
     instance.work_orders = MagicMock()
+    instance.audit_logs = MagicMock()
     return instance
 
 
