@@ -53,6 +53,10 @@ from app.models.supplier_bill import (
     SupplierBillLineItem,
     SupplierBillMatchResult,
 )
+from app.models.supplier_payment import (
+    SupplierPayment,
+    SupplierPaymentAllocation,
+)
 from app.models.user import User
 from app.models.work_order import (
     WorkOrder,
@@ -107,6 +111,8 @@ __all__ = [
     "SupplierBill",
     "SupplierBillLineItem",
     "SupplierBillMatchResult",
+    "SupplierPayment",
+    "SupplierPaymentAllocation",
     "User",
     "WorkOrder",
     "WorkOrderActivity",

@@ -14,6 +14,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,10 @@ from app.models.supplier_bill import (
     SupplierBill,
     SupplierBillLineItem,
     SupplierBillMatchResult,
+)
+from app.models.supplier_payment import (
+    SupplierPayment,
+    SupplierPaymentAllocation,
 )
 from app.repositories.purchase_order import PurchaseOrderRepository
 from app.repositories.supplier import SupplierRepository
@@ -1016,6 +1021,33 @@ class SupplierBillService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Supplier bill is already voided.",
             )
+
+        active_payment_count = (
+            self.db.query(
+                func.count(SupplierPaymentAllocation.id)
+            )
+            .join(
+                SupplierPayment,
+                SupplierPayment.id
+                == SupplierPaymentAllocation.supplier_payment_id,
+            )
+            .filter(
+                SupplierPaymentAllocation.supplier_bill_id == bill.id,
+                SupplierPayment.status == "posted",
+            )
+            .scalar()
+            or 0
+        )
+
+        if active_payment_count:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Reverse active supplier payments before "
+                    "voiding this bill."
+                ),
+            )
+
         previous_status = bill.status
         bill.status = "voided"
         bill.voided_at = datetime.now(UTC)

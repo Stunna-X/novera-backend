@@ -55,6 +55,9 @@ from app.api.v1.suppliers.router import router as supplier_router
 from app.api.v1.supplier_bills.router import (
     router as supplier_bill_router,
 )
+from app.api.v1.supplier_payments.router import (
+    router as supplier_payment_router,
+)
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
 )
@@ -134,6 +137,10 @@ api_router.include_router(
 
 api_router.include_router(
     supplier_bill_router,
+)
+
+api_router.include_router(
+    supplier_payment_router,
 )
 
 api_router.include_router(

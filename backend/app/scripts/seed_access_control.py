@@ -160,6 +160,17 @@ PERMISSIONS: dict[str, str] = {
         "Void supplier bills while retaining audit history."
     ),
 
+    # Supplier payments and accounts payable
+    "supplier_payments.read": (
+        "View supplier payments and approved bill balances."
+    ),
+    "supplier_payments.create": (
+        "Post and allocate payments to approved supplier bills."
+    ),
+    "supplier_payments.reverse": (
+        "Reverse supplier payments while retaining audit history."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -322,6 +333,9 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_bills.match",
             "supplier_bills.approve",
             "supplier_bills.void",
+            "supplier_payments.read",
+            "supplier_payments.create",
+            "supplier_payments.reverse",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -404,6 +418,8 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_bills.update",
             "supplier_bills.submit",
             "supplier_bills.match",
+            "supplier_payments.read",
+            "supplier_payments.create",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -479,6 +495,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "purchase_orders.read",
             "goods_receipts.read",
             "supplier_bills.read",
+            "supplier_payments.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",
