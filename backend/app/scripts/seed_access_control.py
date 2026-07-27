@@ -176,6 +176,17 @@ PERMISSIONS: dict[str, str] = {
         "View tenant-scoped procurement, spend, and payable analytics."
     ),
 
+    # Procurement workflow alerts
+    "procurement_alerts.read": (
+        "View personal procurement alert preferences and deliveries."
+    ),
+    "procurement_alerts.update": (
+        "Update personal procurement alert preferences."
+    ),
+    "procurement_alerts.dispatch": (
+        "Evaluate and dispatch tenant-scoped procurement workflow alerts."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -342,6 +353,9 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_payments.create",
             "supplier_payments.reverse",
             "procurement_analytics.read",
+            "procurement_alerts.read",
+            "procurement_alerts.update",
+            "procurement_alerts.dispatch",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -427,6 +441,9 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_payments.read",
             "supplier_payments.create",
             "procurement_analytics.read",
+            "procurement_alerts.read",
+            "procurement_alerts.update",
+            "procurement_alerts.dispatch",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -504,6 +521,8 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_bills.read",
             "supplier_payments.read",
             "procurement_analytics.read",
+            "procurement_alerts.read",
+            "procurement_alerts.update",
             "projects.read",
             "work_orders.read",
             "scheduling.read",

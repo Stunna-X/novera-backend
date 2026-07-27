@@ -125,3 +125,7 @@ __all__ = [
     "WorkOrderWorkforceAssignment",
     "WorkforceProfile",
 ]
+from app.models.procurement_alert import (
+    ProcurementAlertDelivery,
+    ProcurementAlertPreference,
+)

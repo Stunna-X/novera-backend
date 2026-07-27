@@ -61,6 +61,9 @@ from app.api.v1.supplier_payments.router import (
 from app.api.v1.procurement_analytics.router import (
     router as procurement_analytics_router,
 )
+from app.api.v1.procurement_alerts.router import (
+    router as procurement_alert_router,
+)
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
 )
@@ -148,6 +151,10 @@ api_router.include_router(
 
 api_router.include_router(
     procurement_analytics_router,
+)
+
+api_router.include_router(
+    procurement_alert_router,
 )
 
 api_router.include_router(
