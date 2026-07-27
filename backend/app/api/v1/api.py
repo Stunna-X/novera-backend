@@ -64,6 +64,12 @@ from app.api.v1.procurement_analytics.router import (
 from app.api.v1.procurement_alerts.router import (
     router as procurement_alert_router,
 )
+from app.api.v1.supplier_returns.router import (
+    router as supplier_return_router,
+)
+from app.api.v1.supplier_debit_notes.router import (
+    router as supplier_debit_note_router,
+)
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
 )
@@ -155,6 +161,14 @@ api_router.include_router(
 
 api_router.include_router(
     procurement_alert_router,
+)
+
+api_router.include_router(
+    supplier_return_router,
+)
+
+api_router.include_router(
+    supplier_debit_note_router,
 )
 
 api_router.include_router(

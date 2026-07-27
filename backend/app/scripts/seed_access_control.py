@@ -187,6 +187,52 @@ PERMISSIONS: dict[str, str] = {
         "Evaluate and dispatch tenant-scoped procurement workflow alerts."
     ),
 
+    # Supplier returns
+    "supplier_returns.read": (
+        "View tenant-scoped supplier returns."
+    ),
+    "supplier_returns.create": (
+        "Create draft supplier returns."
+    ),
+    "supplier_returns.update": (
+        "Update draft supplier returns and return lines."
+    ),
+    "supplier_returns.dispatch": (
+        "Dispatch supplier returns and post inventory movements."
+    ),
+    "supplier_returns.complete": (
+        "Confirm supplier return completion."
+    ),
+    "supplier_returns.cancel": (
+        "Cancel draft supplier returns."
+    ),
+
+    # Supplier debit notes and credit settlement
+    "supplier_debit_notes.read": (
+        "View supplier debit notes and credit settlements."
+    ),
+    "supplier_debit_notes.create": (
+        "Create draft supplier debit notes."
+    ),
+    "supplier_debit_notes.update": (
+        "Update draft supplier debit notes and lines."
+    ),
+    "supplier_debit_notes.issue": (
+        "Issue supplier debit notes."
+    ),
+    "supplier_debit_notes.acknowledge": (
+        "Acknowledge supplier debit notes as available credits."
+    ),
+    "supplier_debit_notes.void": (
+        "Void supplier debit notes without active settlements."
+    ),
+    "supplier_debit_notes.settle": (
+        "Apply supplier credits to approved supplier bills."
+    ),
+    "supplier_debit_notes.reverse_settlement": (
+        "Reverse supplier credit settlements."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -356,6 +402,20 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "procurement_alerts.read",
             "procurement_alerts.update",
             "procurement_alerts.dispatch",
+            "supplier_returns.read",
+            "supplier_returns.create",
+            "supplier_returns.update",
+            "supplier_returns.dispatch",
+            "supplier_returns.complete",
+            "supplier_returns.cancel",
+            "supplier_debit_notes.read",
+            "supplier_debit_notes.create",
+            "supplier_debit_notes.update",
+            "supplier_debit_notes.issue",
+            "supplier_debit_notes.acknowledge",
+            "supplier_debit_notes.void",
+            "supplier_debit_notes.settle",
+            "supplier_debit_notes.reverse_settlement",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -444,6 +504,16 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "procurement_alerts.read",
             "procurement_alerts.update",
             "procurement_alerts.dispatch",
+            "supplier_returns.read",
+            "supplier_returns.create",
+            "supplier_returns.update",
+            "supplier_returns.dispatch",
+            "supplier_returns.complete",
+            "supplier_debit_notes.read",
+            "supplier_debit_notes.create",
+            "supplier_debit_notes.update",
+            "supplier_debit_notes.issue",
+            "supplier_debit_notes.settle",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -523,6 +593,8 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "procurement_analytics.read",
             "procurement_alerts.read",
             "procurement_alerts.update",
+            "supplier_returns.read",
+            "supplier_debit_notes.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",

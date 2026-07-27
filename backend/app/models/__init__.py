@@ -129,3 +129,10 @@ from app.models.procurement_alert import (
     ProcurementAlertDelivery,
     ProcurementAlertPreference,
 )
+from app.models.supplier_return import (
+    SupplierCreditSettlement,
+    SupplierDebitNote,
+    SupplierDebitNoteLineItem,
+    SupplierReturn,
+    SupplierReturnLineItem,
+)
