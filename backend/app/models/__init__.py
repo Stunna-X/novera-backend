@@ -136,3 +136,8 @@ from app.models.supplier_return import (
     SupplierReturn,
     SupplierReturnLineItem,
 )
+from app.models.procurement_document import (
+    ProcurementApprovalEvidence,
+    ProcurementDocument,
+    ProcurementDocumentVersion,
+)

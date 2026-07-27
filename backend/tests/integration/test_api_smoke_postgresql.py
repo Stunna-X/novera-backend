@@ -182,7 +182,7 @@ def test_openapi_security_and_route_inventory(
         "/openapi.json"
     ).json()
 
-    assert len(schema["paths"]) == 200
+    assert len(schema["paths"]) == 208
 
     operations: list[
         tuple[str, str, dict[str, object]]
@@ -227,7 +227,7 @@ def test_openapi_security_and_route_inventory(
                 "an OpenAPI security requirement."
             )
 
-    assert len(operations) == 269
+    assert len(operations) == 281
     assert len(operation_ids) == len(
         set(operation_ids)
     )
@@ -236,7 +236,7 @@ def test_openapi_security_and_route_inventory(
 def test_unauthenticated_route_sweep_has_no_server_errors(
     api_client: TestClient,
 ) -> None:
-    """Exercise all 269 operations without credentials."""
+    """Exercise all 281 operations without credentials."""
 
     schema = api_client.get(
         "/openapi.json"
@@ -292,7 +292,7 @@ def test_unauthenticated_route_sweep_has_no_server_errors(
                     "succeeded without authentication."
                 )
 
-    assert examined == 269
+    assert examined == 281
 
 
 def test_authentication_rbac_and_tenant_workflow(

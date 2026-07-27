@@ -233,6 +233,29 @@ PERMISSIONS: dict[str, str] = {
         "Reverse supplier credit settlements."
     ),
 
+    # Procurement documents and approval evidence
+    "procurement_documents.read": (
+        "View tenant-scoped procurement documents and versions."
+    ),
+    "procurement_documents.create": (
+        "Create procurement document records."
+    ),
+    "procurement_documents.update": (
+        "Update active document metadata and register versions."
+    ),
+    "procurement_documents.verify": (
+        "Verify document checksums and quarantine mismatches."
+    ),
+    "procurement_documents.archive": (
+        "Archive and restore procurement documents."
+    ),
+    "procurement_approval_evidence.read": (
+        "View immutable procurement approval evidence."
+    ),
+    "procurement_approval_evidence.create": (
+        "Record immutable procurement approval evidence."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -416,6 +439,13 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_debit_notes.void",
             "supplier_debit_notes.settle",
             "supplier_debit_notes.reverse_settlement",
+            "procurement_documents.read",
+            "procurement_documents.create",
+            "procurement_documents.update",
+            "procurement_documents.verify",
+            "procurement_documents.archive",
+            "procurement_approval_evidence.read",
+            "procurement_approval_evidence.create",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -514,6 +544,12 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_debit_notes.update",
             "supplier_debit_notes.issue",
             "supplier_debit_notes.settle",
+            "procurement_documents.read",
+            "procurement_documents.create",
+            "procurement_documents.update",
+            "procurement_documents.verify",
+            "procurement_approval_evidence.read",
+            "procurement_approval_evidence.create",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -595,6 +631,8 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "procurement_alerts.update",
             "supplier_returns.read",
             "supplier_debit_notes.read",
+            "procurement_documents.read",
+            "procurement_approval_evidence.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",

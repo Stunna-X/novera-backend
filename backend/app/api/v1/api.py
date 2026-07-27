@@ -70,6 +70,10 @@ from app.api.v1.supplier_returns.router import (
 from app.api.v1.supplier_debit_notes.router import (
     router as supplier_debit_note_router,
 )
+from app.api.v1.procurement_documents.router import (
+    documents_router as procurement_documents_router,
+    evidence_router as procurement_approval_evidence_router,
+)
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
 )
@@ -169,6 +173,14 @@ api_router.include_router(
 
 api_router.include_router(
     supplier_debit_note_router,
+)
+
+api_router.include_router(
+    procurement_documents_router,
+)
+
+api_router.include_router(
+    procurement_approval_evidence_router,
 )
 
 api_router.include_router(
