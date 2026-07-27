@@ -137,6 +137,29 @@ PERMISSIONS: dict[str, str] = {
         "Cancel draft goods receipts."
     ),
 
+    # Supplier bills and three-way matching
+    "supplier_bills.read": (
+        "View supplier bills and persisted match results."
+    ),
+    "supplier_bills.create": (
+        "Create draft supplier bills against purchase orders."
+    ),
+    "supplier_bills.update": (
+        "Update draft supplier bills and line items."
+    ),
+    "supplier_bills.submit": (
+        "Submit supplier bills for three-way matching."
+    ),
+    "supplier_bills.match": (
+        "Run purchase-order and goods-receipt matching."
+    ),
+    "supplier_bills.approve": (
+        "Approve matched bills or documented exceptions."
+    ),
+    "supplier_bills.void": (
+        "Void supplier bills while retaining audit history."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -292,6 +315,13 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "goods_receipts.update",
             "goods_receipts.post",
             "goods_receipts.cancel",
+            "supplier_bills.read",
+            "supplier_bills.create",
+            "supplier_bills.update",
+            "supplier_bills.submit",
+            "supplier_bills.match",
+            "supplier_bills.approve",
+            "supplier_bills.void",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -369,6 +399,11 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "goods_receipts.create",
             "goods_receipts.update",
             "goods_receipts.post",
+            "supplier_bills.read",
+            "supplier_bills.create",
+            "supplier_bills.update",
+            "supplier_bills.submit",
+            "supplier_bills.match",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -443,6 +478,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "purchase_requisitions.read",
             "purchase_orders.read",
             "goods_receipts.read",
+            "supplier_bills.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",

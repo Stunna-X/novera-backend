@@ -48,6 +48,11 @@ from app.models.refresh_token import RefreshToken
 from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.supplier import Supplier
+from app.models.supplier_bill import (
+    SupplierBill,
+    SupplierBillLineItem,
+    SupplierBillMatchResult,
+)
 from app.models.user import User
 from app.models.work_order import (
     WorkOrder,
@@ -99,6 +104,9 @@ __all__ = [
     "Role",
     "RolePermission",
     "Supplier",
+    "SupplierBill",
+    "SupplierBillLineItem",
+    "SupplierBillMatchResult",
     "User",
     "WorkOrder",
     "WorkOrderActivity",

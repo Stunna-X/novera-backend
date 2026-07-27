@@ -52,6 +52,9 @@ from app.api.v1.scheduling.router import (
     router as scheduling_router,
 )
 from app.api.v1.suppliers.router import router as supplier_router
+from app.api.v1.supplier_bills.router import (
+    router as supplier_bill_router,
+)
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
 )
@@ -127,6 +130,10 @@ api_router.include_router(
 
 api_router.include_router(
     goods_receipt_router,
+)
+
+api_router.include_router(
+    supplier_bill_router,
 )
 
 api_router.include_router(
