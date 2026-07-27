@@ -27,6 +27,10 @@ from app.models.membership import Membership
 from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.permission import Permission
+from app.models.purchase_requisition import (
+    PurchaseRequisition,
+    PurchaseRequisitionLineItem,
+)
 from app.models.quote import (
     Quote,
     QuoteActivity,
@@ -74,6 +78,8 @@ __all__ = [
     "Notification",
     "Organization",
     "Permission",
+    "PurchaseRequisition",
+    "PurchaseRequisitionLineItem",
     "Quote",
     "QuoteActivity",
     "QuoteLineItem",
