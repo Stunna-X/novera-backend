@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/authentication
+      - feat/procurement-foundation
     paths:
       - "backend/**"
       - ".github/workflows/backend-ci.yml"
