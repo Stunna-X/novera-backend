@@ -71,6 +71,12 @@ PERMISSIONS: dict[str, str] = {
         "Deactivate inventory locations and catalogue items."
     ),
 
+    # Suppliers
+    "suppliers.read": "View organization suppliers.",
+    "suppliers.create": "Create organization suppliers.",
+    "suppliers.update": "Update organization suppliers.",
+    "suppliers.delete": "Deactivate organization suppliers.",
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -204,6 +210,10 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "inventory.create",
             "inventory.update",
             "inventory.delete",
+            "suppliers.read",
+            "suppliers.create",
+            "suppliers.update",
+            "suppliers.delete",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -267,6 +277,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "inventory.read",
             "inventory.create",
             "inventory.update",
+            "suppliers.read",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -337,6 +348,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "workforce.read",
             "assets.read",
             "inventory.read",
+            "suppliers.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",
