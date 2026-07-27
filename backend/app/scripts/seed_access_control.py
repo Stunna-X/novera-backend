@@ -97,6 +97,29 @@ PERMISSIONS: dict[str, str] = {
         "Cancel eligible purchase requisitions."
     ),
 
+    # Purchase orders
+    "purchase_orders.read": (
+        "View organization purchase orders."
+    ),
+    "purchase_orders.create": (
+        "Create purchase orders manually or from approved requisitions."
+    ),
+    "purchase_orders.update": (
+        "Update draft purchase orders and line items."
+    ),
+    "purchase_orders.issue": (
+        "Issue purchase orders to suppliers."
+    ),
+    "purchase_orders.acknowledge": (
+        "Record supplier acknowledgement of issued purchase orders."
+    ),
+    "purchase_orders.cancel": (
+        "Cancel eligible purchase orders."
+    ),
+    "purchase_orders.close": (
+        "Close fully received purchase orders."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -240,6 +263,13 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "purchase_requisitions.submit",
             "purchase_requisitions.approve",
             "purchase_requisitions.cancel",
+            "purchase_orders.read",
+            "purchase_orders.create",
+            "purchase_orders.update",
+            "purchase_orders.issue",
+            "purchase_orders.acknowledge",
+            "purchase_orders.cancel",
+            "purchase_orders.close",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -309,6 +339,10 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "purchase_requisitions.update",
             "purchase_requisitions.submit",
             "purchase_requisitions.cancel",
+            "purchase_orders.read",
+            "purchase_orders.create",
+            "purchase_orders.update",
+            "purchase_orders.acknowledge",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -381,6 +415,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "inventory.read",
             "suppliers.read",
             "purchase_requisitions.read",
+            "purchase_orders.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",

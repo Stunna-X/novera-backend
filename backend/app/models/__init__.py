@@ -27,6 +27,10 @@ from app.models.membership import Membership
 from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.permission import Permission
+from app.models.purchase_order import (
+    PurchaseOrder,
+    PurchaseOrderLineItem,
+)
 from app.models.purchase_requisition import (
     PurchaseRequisition,
     PurchaseRequisitionLineItem,
@@ -78,6 +82,8 @@ __all__ = [
     "Notification",
     "Organization",
     "Permission",
+    "PurchaseOrder",
+    "PurchaseOrderLineItem",
     "PurchaseRequisition",
     "PurchaseRequisitionLineItem",
     "Quote",

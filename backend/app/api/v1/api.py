@@ -36,6 +36,9 @@ from app.api.v1.notifications.router import (
 from app.api.v1.organizations.router import (
     router as organization_router,
 )
+from app.api.v1.purchase_orders.router import (
+    router as purchase_order_router,
+)
 from app.api.v1.purchase_requisitions.router import (
     router as purchase_requisition_router,
 )
@@ -113,6 +116,10 @@ api_router.include_router(
 
 api_router.include_router(
     purchase_requisition_router,
+)
+
+api_router.include_router(
+    purchase_order_router,
 )
 
 api_router.include_router(
