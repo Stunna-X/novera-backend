@@ -120,6 +120,23 @@ PERMISSIONS: dict[str, str] = {
         "Close fully received purchase orders."
     ),
 
+    # Goods receipts
+    "goods_receipts.read": (
+        "View organization goods receipts."
+    ),
+    "goods_receipts.create": (
+        "Create draft goods receipts against purchase orders."
+    ),
+    "goods_receipts.update": (
+        "Update draft goods receipts and line items."
+    ),
+    "goods_receipts.post": (
+        "Post goods receipts and accepted stock atomically."
+    ),
+    "goods_receipts.cancel": (
+        "Cancel draft goods receipts."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -270,6 +287,11 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "purchase_orders.acknowledge",
             "purchase_orders.cancel",
             "purchase_orders.close",
+            "goods_receipts.read",
+            "goods_receipts.create",
+            "goods_receipts.update",
+            "goods_receipts.post",
+            "goods_receipts.cancel",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -343,6 +365,10 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "purchase_orders.create",
             "purchase_orders.update",
             "purchase_orders.acknowledge",
+            "goods_receipts.read",
+            "goods_receipts.create",
+            "goods_receipts.update",
+            "goods_receipts.post",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -416,6 +442,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "suppliers.read",
             "purchase_requisitions.read",
             "purchase_orders.read",
+            "goods_receipts.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",

@@ -1,0 +1,1 @@
+"""Goods receipt API package."""

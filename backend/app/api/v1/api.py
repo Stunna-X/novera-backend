@@ -24,6 +24,9 @@ from app.api.v1.document_deliveries.router import (
 from app.api.v1.email_outbox.router import (
     router as email_outbox_router,
 )
+from app.api.v1.goods_receipts.router import (
+    router as goods_receipt_router,
+)
 from app.api.v1.health.router import router as health_router
 from app.api.v1.inventory.router import router as inventory_router
 from app.api.v1.invoices.router import router as invoice_router
@@ -120,6 +123,10 @@ api_router.include_router(
 
 api_router.include_router(
     purchase_order_router,
+)
+
+api_router.include_router(
+    goods_receipt_router,
 )
 
 api_router.include_router(
