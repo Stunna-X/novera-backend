@@ -171,6 +171,11 @@ PERMISSIONS: dict[str, str] = {
         "Reverse supplier payments while retaining audit history."
     ),
 
+    # Procurement analytics
+    "procurement_analytics.read": (
+        "View tenant-scoped procurement, spend, and payable analytics."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -336,6 +341,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_payments.read",
             "supplier_payments.create",
             "supplier_payments.reverse",
+            "procurement_analytics.read",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -420,6 +426,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "supplier_bills.match",
             "supplier_payments.read",
             "supplier_payments.create",
+            "procurement_analytics.read",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -496,6 +503,7 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "goods_receipts.read",
             "supplier_bills.read",
             "supplier_payments.read",
+            "procurement_analytics.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",
