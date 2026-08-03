@@ -141,3 +141,10 @@ from app.models.procurement_document import (
     ProcurementDocument,
     ProcurementDocumentVersion,
 )
+
+from app.models.work_order_material import (
+    WorkOrderMaterialRequirement,
+)
+
+if "WorkOrderMaterialRequirement" not in __all__:
+    __all__.append("WorkOrderMaterialRequirement")
