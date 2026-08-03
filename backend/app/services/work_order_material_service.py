@@ -5,6 +5,7 @@ Business logic for work-order material readiness.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
@@ -13,10 +14,14 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.inventory import InventoryItem
+from app.models.purchase_requisition import PurchaseRequisition
 from app.models.work_order import WorkOrder
 from app.models.work_order_activity import WorkOrderActivity
 from app.models.work_order_material import (
     WorkOrderMaterialRequirement,
+)
+from app.repositories.purchase_requisition import (
+    PurchaseRequisitionRepository,
 )
 from app.repositories.work_order import WorkOrderRepository
 from app.repositories.work_order_activity import (
@@ -25,12 +30,22 @@ from app.repositories.work_order_activity import (
 from app.repositories.work_order_material import (
     WorkOrderMaterialRepository,
 )
+from app.schemas.purchase_requisition import (
+    CreatePurchaseRequisitionSchema,
+    PurchaseRequisitionLineCreate,
+    PurchaseRequisitionResponse,
+)
 from app.schemas.work_order_material import (
     WorkOrderMaterialCreate,
     WorkOrderMaterialItemSummary,
     WorkOrderMaterialListResponse,
+    WorkOrderMaterialPurchaseRequestCreate,
+    WorkOrderMaterialPurchaseRequestResponse,
     WorkOrderMaterialResponse,
     WorkOrderMaterialUpdate,
+)
+from app.services.purchase_requisition_service import (
+    PurchaseRequisitionService,
 )
 
 
@@ -43,6 +58,13 @@ TERMINAL_WORK_ORDER_STATUSES = {
     "cancelled",
 }
 
+SHORTAGE_REQUEST_SOURCE = "work_order_material_shortage"
+OPEN_SHORTAGE_REQUEST_STATUSES = {
+    "draft",
+    "submitted",
+    "approved",
+}
+
 
 class WorkOrderMaterialService:
     """Manage planned job materials and calculate live coverage."""
@@ -52,6 +74,10 @@ class WorkOrderMaterialService:
         self.work_orders = WorkOrderRepository(db)
         self.materials = WorkOrderMaterialRepository(db)
         self.activities = WorkOrderActivityRepository(db)
+        self.purchase_requisitions = (
+            PurchaseRequisitionRepository(db)
+        )
+        self.procurement = PurchaseRequisitionService(db)
 
     @staticmethod
     def _quantize_quantity(value: Decimal) -> Decimal:
@@ -550,6 +576,258 @@ class WorkOrderMaterialService:
                 and missing_lines == 0
             ),
             total_estimated_cost=total_estimated_cost,
+        )
+
+
+    @staticmethod
+    def _source_requirement_ids(
+        requisition: PurchaseRequisition,
+    ) -> list[uuid.UUID]:
+        values = (requisition.details or {}).get(
+            "source_requirement_ids",
+            [],
+        )
+        result: list[uuid.UUID] = []
+
+        for value in values:
+            try:
+                result.append(uuid.UUID(str(value)))
+            except (TypeError, ValueError, AttributeError):
+                continue
+
+        if result:
+            return result
+
+        for line in requisition.line_items:
+            value = (line.details or {}).get(
+                "source_requirement_id"
+            )
+
+            if value is None:
+                continue
+
+            try:
+                result.append(uuid.UUID(str(value)))
+            except (TypeError, ValueError, AttributeError):
+                continue
+
+        return result
+
+    def _find_open_shortage_request(
+        self,
+        organization_id: uuid.UUID,
+        work_order_id: uuid.UUID,
+    ) -> PurchaseRequisition | None:
+        candidates = (
+            self.purchase_requisitions.list_for_organization(
+                organization_id,
+                skip=0,
+                limit=200,
+                work_order_id=work_order_id,
+                include_inactive=False,
+            )
+        )
+
+        for requisition in candidates:
+            if requisition.status not in (
+                OPEN_SHORTAGE_REQUEST_STATUSES
+            ):
+                continue
+
+            if (requisition.details or {}).get(
+                "source"
+            ) == SHORTAGE_REQUEST_SOURCE:
+                return requisition
+
+        return None
+
+    @staticmethod
+    def _purchase_request_response(
+        requisition: PurchaseRequisition,
+        *,
+        created: bool,
+        source_requirement_ids: list[uuid.UUID],
+    ) -> WorkOrderMaterialPurchaseRequestResponse:
+        return WorkOrderMaterialPurchaseRequestResponse(
+            created=created,
+            shortage_line_count=len(source_requirement_ids),
+            source_requirement_ids=source_requirement_ids,
+            requisition=(
+                PurchaseRequisitionResponse.model_validate(
+                    requisition
+                )
+            ),
+        )
+
+    def request_missing_materials(
+        self,
+        organization_id: uuid.UUID,
+        work_order_id: uuid.UUID,
+        payload: WorkOrderMaterialPurchaseRequestCreate,
+        *,
+        actor_user_id: uuid.UUID | None,
+        actor_membership_id: uuid.UUID | None,
+    ) -> WorkOrderMaterialPurchaseRequestResponse:
+        """Create one idempotent draft requisition for shortages."""
+
+        work_order = self._get_work_order_or_404(
+            organization_id,
+            work_order_id,
+        )
+        self._ensure_work_order_mutable(work_order)
+
+        readiness = self.list_requirements(
+            organization_id,
+            work_order_id,
+            skip=0,
+            limit=200,
+        )
+        shortages = [
+            item
+            for item in readiness.items
+            if item.missing_quantity > Decimal("0.000")
+        ]
+
+        if not shortages:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This job has no current material shortage "
+                    "to request."
+                ),
+            )
+
+        existing = self._find_open_shortage_request(
+            organization_id,
+            work_order_id,
+        )
+
+        if existing is not None:
+            source_ids = self._source_requirement_ids(
+                existing
+            )
+
+            if not source_ids:
+                source_ids = [
+                    item.id
+                    for item in shortages
+                ]
+
+            return self._purchase_request_response(
+                existing,
+                created=False,
+                source_requirement_ids=source_ids,
+            )
+
+        currencies = {
+            item.currency.upper()
+            for item in shortages
+        }
+
+        if len(currencies) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Current shortages use multiple currencies. "
+                    "Create separate purchase requests for each "
+                    "currency."
+                ),
+            )
+
+        source_ids = [item.id for item in shortages]
+        generated_at = datetime.now(UTC).isoformat()
+        header_details = dict(payload.details)
+        header_details.update(
+            {
+                "source": SHORTAGE_REQUEST_SOURCE,
+                "source_work_order_id": str(work_order.id),
+                "source_requirement_ids": [
+                    str(value)
+                    for value in source_ids
+                ],
+                "generated_at": generated_at,
+                "shortage_line_count": len(shortages),
+            }
+        )
+
+        requested_delivery_date = (
+            payload.requested_delivery_date
+        )
+
+        if (
+            requested_delivery_date is None
+            and work_order.scheduled_start is not None
+        ):
+            requested_delivery_date = (
+                work_order.scheduled_start.date()
+            )
+
+        lines = [
+            PurchaseRequisitionLineCreate(
+                inventory_item_id=item.inventory_item_id,
+                description=item.item.name,
+                quantity=item.missing_quantity,
+                unit_of_measure=item.item.unit_of_measure,
+                estimated_unit_cost=item.estimated_unit_cost,
+                position=index,
+                notes=item.notes,
+                details={
+                    "source": SHORTAGE_REQUEST_SOURCE,
+                    "source_requirement_id": str(item.id),
+                    "required_quantity": str(
+                        item.required_quantity
+                    ),
+                    "covered_quantity": str(
+                        item.covered_quantity
+                    ),
+                    "missing_quantity": str(
+                        item.missing_quantity
+                    ),
+                    "coverage_percentage": str(
+                        item.coverage_percentage
+                    ),
+                    "readiness_status": (
+                        item.readiness_status
+                    ),
+                    "generated_at": generated_at,
+                },
+            )
+            for index, item in enumerate(shortages)
+        ]
+
+        requisition = self.procurement.create_requisition(
+            organization_id=organization_id,
+            payload=CreatePurchaseRequisitionSchema(
+                title=(
+                    "Missing materials for "
+                    f"{work_order.work_order_number}"
+                ),
+                description=(
+                    "Automatically generated from live material "
+                    f"shortages for {work_order.title}."
+                ),
+                priority=work_order.priority,
+                currency=next(iter(currencies)),
+                work_order_id=work_order.id,
+                requested_delivery_date=(
+                    requested_delivery_date
+                ),
+                justification=(
+                    payload.justification
+                    or "Required to cover current job material shortages."
+                ),
+                notes=payload.notes,
+                details=header_details,
+                line_items=lines,
+            ),
+            actor_user_id=actor_user_id,
+            actor_membership_id=actor_membership_id,
+        )
+
+        return self._purchase_request_response(
+            requisition,
+            created=True,
+            source_requirement_ids=source_ids,
         )
 
     def get_requirement(

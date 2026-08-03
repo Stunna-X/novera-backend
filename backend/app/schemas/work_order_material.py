@@ -5,9 +5,13 @@ Validation and response schemas for work-order material readiness.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
+
+from app.schemas.purchase_requisition import (
+    PurchaseRequisitionResponse,
+)
 
 from pydantic import (
     BaseModel,
@@ -162,3 +166,45 @@ class WorkOrderMaterialListResponse(BaseModel):
 
     all_materials_ready: bool
     total_estimated_cost: Decimal = Field(ge=Decimal("0"))
+
+class WorkOrderMaterialPurchaseRequestCreate(BaseModel):
+    """Options for creating a shortage purchase request."""
+
+    requested_delivery_date: date | None = None
+
+    justification: str | None = Field(
+        default=None,
+        max_length=10000,
+    )
+
+    notes: str | None = Field(
+        default=None,
+        max_length=10000,
+    )
+
+    details: dict[str, Any] = Field(
+        default_factory=dict,
+    )
+
+    @field_validator(
+        "justification",
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_text(
+        cls,
+        value: object,
+    ) -> object:
+        return _normalize_optional_text(value)
+
+
+class WorkOrderMaterialPurchaseRequestResponse(BaseModel):
+    """Draft requisition created from live job shortages."""
+
+    created: bool
+    shortage_line_count: int = Field(ge=1)
+    source_requirement_ids: list[uuid.UUID] = Field(
+        min_length=1,
+    )
+    requisition: PurchaseRequisitionResponse

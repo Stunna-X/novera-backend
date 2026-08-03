@@ -23,6 +23,8 @@ from app.database.session import get_db
 from app.schemas.work_order_material import (
     WorkOrderMaterialCreate,
     WorkOrderMaterialListResponse,
+    WorkOrderMaterialPurchaseRequestCreate,
+    WorkOrderMaterialPurchaseRequestResponse,
     WorkOrderMaterialResponse,
     WorkOrderMaterialUpdate,
 )
@@ -94,6 +96,37 @@ def list_work_order_materials(
         include_inactive_work_order=(
             include_inactive_work_order
         ),
+    )
+
+
+@router.post(
+    "/{work_order_id}/materials/request-missing",
+    response_model=WorkOrderMaterialPurchaseRequestResponse,
+    summary="Request missing work-order materials",
+)
+def request_missing_work_order_materials(
+    work_order_id: uuid.UUID,
+    payload: WorkOrderMaterialPurchaseRequestCreate | None = None,
+    context: OrganizationContext = Depends(
+        require_all_permissions(
+            "work_orders.read",
+            "inventory.read",
+            "purchase_requisitions.create",
+        )
+    ),
+    db: Session = Depends(get_db),
+) -> WorkOrderMaterialPurchaseRequestResponse:
+    service = WorkOrderMaterialService(db)
+
+    return service.request_missing_materials(
+        organization_id=context.organization.id,
+        work_order_id=work_order_id,
+        payload=(
+            payload
+            or WorkOrderMaterialPurchaseRequestCreate()
+        ),
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
 
