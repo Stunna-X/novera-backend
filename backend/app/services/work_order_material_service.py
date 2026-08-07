@@ -659,6 +659,244 @@ class WorkOrderMaterialService:
             ),
         )
 
+    @staticmethod
+    def _shortage_request_line(
+        item: WorkOrderMaterialResponse,
+        *,
+        position: int,
+        generated_at: str,
+    ) -> PurchaseRequisitionLineCreate:
+        """Build one procurement line from a live shortage."""
+
+        return PurchaseRequisitionLineCreate(
+            inventory_item_id=item.inventory_item_id,
+            description=item.item.name,
+            quantity=item.missing_quantity,
+            unit_of_measure=item.item.unit_of_measure,
+            estimated_unit_cost=item.estimated_unit_cost,
+            position=position,
+            notes=item.notes,
+            details={
+                "source": SHORTAGE_REQUEST_SOURCE,
+                "source_requirement_id": str(item.id),
+                "required_quantity": str(
+                    item.required_quantity
+                ),
+                "covered_quantity": str(
+                    item.covered_quantity
+                ),
+                "missing_quantity": str(
+                    item.missing_quantity
+                ),
+                "coverage_percentage": str(
+                    item.coverage_percentage
+                ),
+                "readiness_status": (
+                    item.readiness_status
+                ),
+                "generated_at": generated_at,
+            },
+        )
+
+    def _sync_draft_shortage_request(
+        self,
+        organization_id: uuid.UUID,
+        work_order: WorkOrder,
+        requisition: PurchaseRequisition,
+        shortages: list[WorkOrderMaterialResponse],
+        payload: WorkOrderMaterialPurchaseRequestCreate,
+        *,
+        actor_user_id: uuid.UUID | None,
+        actor_membership_id: uuid.UUID | None,
+    ) -> PurchaseRequisition:
+        """Refresh a generated draft with current shortages and costs."""
+
+        if requisition.status != "draft":
+            return requisition
+
+        currencies = {
+            item.currency.upper()
+            for item in shortages
+        }
+
+        if len(currencies) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Current shortages use multiple currencies. "
+                    "Create separate purchase requests for each "
+                    "currency."
+                ),
+            )
+
+        generated_at = datetime.now(UTC).isoformat()
+        source_ids = [item.id for item in shortages]
+        generated_lines = [
+            line
+            for line in list(requisition.line_items)
+            if (line.details or {}).get("source")
+            == SHORTAGE_REQUEST_SOURCE
+        ]
+        preserved_lines = [
+            line
+            for line in requisition.line_items
+            if line not in generated_lines
+        ]
+        used_positions = {
+            int(line.position)
+            for line in preserved_lines
+        }
+
+        try:
+            for line in generated_lines:
+                requisition.line_items.remove(line)
+                self.purchase_requisitions.delete_line_item(
+                    line
+                )
+
+            next_position = 0
+
+            for shortage in shortages:
+                while next_position in used_positions:
+                    next_position += 1
+
+                line_payload = self._shortage_request_line(
+                    shortage,
+                    position=next_position,
+                    generated_at=generated_at,
+                )
+                line = self.procurement._build_line(
+                    organization_id,
+                    line_payload,
+                    position=next_position,
+                )
+                line.requisition_id = requisition.id
+                created_line = (
+                    self.purchase_requisitions.add_line_item(
+                        line
+                    )
+                )
+                requisition.line_items.append(created_line)
+                used_positions.add(next_position)
+                next_position += 1
+
+            requested_delivery_date = (
+                payload.requested_delivery_date
+            )
+
+            if (
+                requested_delivery_date is None
+                and work_order.scheduled_start is not None
+            ):
+                requested_delivery_date = (
+                    work_order.scheduled_start.date()
+                )
+
+            details = dict(requisition.details or {})
+            details.update(payload.details)
+            details.update(
+                {
+                    "source": SHORTAGE_REQUEST_SOURCE,
+                    "source_work_order_id": str(work_order.id),
+                    "source_requirement_ids": [
+                        str(value)
+                        for value in source_ids
+                    ],
+                    "refreshed_at": generated_at,
+                    "shortage_line_count": len(shortages),
+                }
+            )
+
+            requisition.title = (
+                "Missing materials for "
+                f"{work_order.work_order_number}"
+            )
+            requisition.description = (
+                "Automatically generated from live material "
+                f"shortages for {work_order.title}."
+            )
+            requisition.priority = work_order.priority
+            requisition.currency = next(iter(currencies))
+            requisition.requested_delivery_date = (
+                requested_delivery_date
+            )
+            requisition.justification = (
+                payload.justification
+                or requisition.justification
+                or "Required to cover current job material shortages."
+            )
+
+            if payload.notes is not None:
+                requisition.notes = payload.notes
+
+            requisition.details = details
+
+            self.procurement._recalculate_total(
+                requisition
+            )
+            self.purchase_requisitions.update(
+                requisition
+            )
+            self.procurement._record_audit(
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+                action=(
+                    "purchase_requisition_shortage_refreshed"
+                ),
+                requisition=requisition,
+                summary=(
+                    "Generated material-shortage request refreshed."
+                ),
+                details={
+                    "source_requirement_ids": [
+                        str(value)
+                        for value in source_ids
+                    ],
+                    "shortage_line_count": len(shortages),
+                    "total_estimated_amount": (
+                        requisition.total_estimated_amount
+                    ),
+                },
+            )
+            self.db.commit()
+
+            refreshed = (
+                self.purchase_requisitions.get_for_organization(
+                    organization_id=organization_id,
+                    requisition_id=requisition.id,
+                )
+            )
+
+            if refreshed is None:
+                raise HTTPException(
+                    status_code=(
+                        status.HTTP_404_NOT_FOUND
+                    ),
+                    detail=(
+                        "The refreshed purchase request "
+                        "could not be loaded."
+                    ),
+                )
+
+            return refreshed
+
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "The generated purchase request could not "
+                    "be refreshed because its lines conflict."
+                ),
+            ) from exc
+        except SQLAlchemyError:
+            self.db.rollback()
+            raise
+        except Exception:
+            self.db.rollback()
+            raise
+
     def request_missing_materials(
         self,
         organization_id: uuid.UUID,
@@ -668,7 +906,7 @@ class WorkOrderMaterialService:
         actor_user_id: uuid.UUID | None,
         actor_membership_id: uuid.UUID | None,
     ) -> WorkOrderMaterialPurchaseRequestResponse:
-        """Create one idempotent draft requisition for shortages."""
+        """Create or refresh one idempotent shortage requisition."""
 
         work_order = self._get_work_order_or_404(
             organization_id,
@@ -697,28 +935,6 @@ class WorkOrderMaterialService:
                 ),
             )
 
-        existing = self._find_open_shortage_request(
-            organization_id,
-            work_order_id,
-        )
-
-        if existing is not None:
-            source_ids = self._source_requirement_ids(
-                existing
-            )
-
-            if not source_ids:
-                source_ids = [
-                    item.id
-                    for item in shortages
-                ]
-
-            return self._purchase_request_response(
-                existing,
-                created=False,
-                source_requirement_ids=source_ids,
-            )
-
         currencies = {
             item.currency.upper()
             for item in shortages
@@ -732,6 +948,37 @@ class WorkOrderMaterialService:
                     "Create separate purchase requests for each "
                     "currency."
                 ),
+            )
+
+        existing = self._find_open_shortage_request(
+            organization_id,
+            work_order_id,
+        )
+
+        if existing is not None:
+            refreshed = self._sync_draft_shortage_request(
+                organization_id,
+                work_order,
+                existing,
+                shortages,
+                payload,
+                actor_user_id=actor_user_id,
+                actor_membership_id=actor_membership_id,
+            )
+            source_ids = self._source_requirement_ids(
+                refreshed
+            )
+
+            if not source_ids:
+                source_ids = [
+                    item.id
+                    for item in shortages
+                ]
+
+            return self._purchase_request_response(
+                refreshed,
+                created=False,
+                source_requirement_ids=source_ids,
             )
 
         source_ids = [item.id for item in shortages]
@@ -763,34 +1010,10 @@ class WorkOrderMaterialService:
             )
 
         lines = [
-            PurchaseRequisitionLineCreate(
-                inventory_item_id=item.inventory_item_id,
-                description=item.item.name,
-                quantity=item.missing_quantity,
-                unit_of_measure=item.item.unit_of_measure,
-                estimated_unit_cost=item.estimated_unit_cost,
+            self._shortage_request_line(
+                item,
                 position=index,
-                notes=item.notes,
-                details={
-                    "source": SHORTAGE_REQUEST_SOURCE,
-                    "source_requirement_id": str(item.id),
-                    "required_quantity": str(
-                        item.required_quantity
-                    ),
-                    "covered_quantity": str(
-                        item.covered_quantity
-                    ),
-                    "missing_quantity": str(
-                        item.missing_quantity
-                    ),
-                    "coverage_percentage": str(
-                        item.coverage_percentage
-                    ),
-                    "readiness_status": (
-                        item.readiness_status
-                    ),
-                    "generated_at": generated_at,
-                },
+                generated_at=generated_at,
             )
             for index, item in enumerate(shortages)
         ]

@@ -53,6 +53,10 @@ def make_shortage(
 def make_service() -> WorkOrderMaterialService:
     service = WorkOrderMaterialService(MagicMock())
     service.procurement.create_requisition = MagicMock()
+    service.purchase_requisitions.update = MagicMock(
+        side_effect=lambda requisition: requisition
+    )
+    service.purchase_requisitions.delete_line_item = MagicMock()
     service._get_work_order_or_404 = MagicMock(
         return_value=SimpleNamespace(
             id=uuid.uuid4(),
@@ -107,7 +111,7 @@ def test_request_missing_materials_creates_draft_requisition() -> None:
     assert payload.details["source"] == SHORTAGE_REQUEST_SOURCE
 
 
-def test_request_missing_materials_returns_open_generated_request() -> None:
+def test_request_missing_materials_reuses_submitted_generated_request() -> None:
     service = make_service()
     shortage = make_shortage()
     service.list_requirements = MagicMock(
@@ -115,7 +119,7 @@ def test_request_missing_materials_returns_open_generated_request() -> None:
     )
     existing = SimpleNamespace(
         id=uuid.uuid4(),
-        status="draft",
+        status="submitted",
         details={
             "source": SHORTAGE_REQUEST_SOURCE,
             "source_requirement_ids": [str(shortage.id)],
@@ -145,6 +149,157 @@ def test_request_missing_materials_returns_open_generated_request() -> None:
         created=False,
         source_requirement_ids=[shortage.id],
     )
+
+
+def test_request_missing_materials_refreshes_generated_draft() -> None:
+    service = make_service()
+    shortage = make_shortage()
+    service.list_requirements = MagicMock(
+        return_value=SimpleNamespace(items=[shortage])
+    )
+    existing = SimpleNamespace(
+        id=uuid.uuid4(),
+        status="draft",
+        details={
+            "source": SHORTAGE_REQUEST_SOURCE,
+            "source_requirement_ids": [str(shortage.id)],
+        },
+        line_items=[],
+    )
+    refreshed = SimpleNamespace(
+        id=existing.id,
+        status="draft",
+        details={
+            "source": SHORTAGE_REQUEST_SOURCE,
+            "source_requirement_ids": [str(shortage.id)],
+        },
+        line_items=[],
+    )
+    service.purchase_requisitions.list_for_organization = (
+        MagicMock(return_value=[existing])
+    )
+    service._sync_draft_shortage_request = MagicMock(
+        return_value=refreshed
+    )
+    expected = SimpleNamespace(created=False)
+    service._purchase_request_response = MagicMock(
+        return_value=expected
+    )
+
+    organization_id = uuid.uuid4()
+    actor_user_id = uuid.uuid4()
+    actor_membership_id = uuid.uuid4()
+    payload = WorkOrderMaterialPurchaseRequestCreate()
+
+    result = service.request_missing_materials(
+        organization_id=organization_id,
+        work_order_id=uuid.uuid4(),
+        payload=payload,
+        actor_user_id=actor_user_id,
+        actor_membership_id=actor_membership_id,
+    )
+
+    assert result is expected
+    service._sync_draft_shortage_request.assert_called_once_with(
+        organization_id,
+        service._get_work_order_or_404.return_value,
+        existing,
+        [shortage],
+        payload,
+        actor_user_id=actor_user_id,
+        actor_membership_id=actor_membership_id,
+    )
+    service.procurement.create_requisition.assert_not_called()
+    service._purchase_request_response.assert_called_once_with(
+        refreshed,
+        created=False,
+        source_requirement_ids=[shortage.id],
+    )
+
+
+def test_sync_draft_shortage_request_rebuilds_generated_lines() -> None:
+    service = make_service()
+    shortage = make_shortage()
+    organization_id = uuid.uuid4()
+    old_line = SimpleNamespace(
+        id=uuid.uuid4(),
+        position=0,
+        details={"source": SHORTAGE_REQUEST_SOURCE},
+    )
+    requisition = SimpleNamespace(
+        id=uuid.uuid4(),
+        status="draft",
+        title="Old title",
+        description="Old description",
+        priority="normal",
+        currency="NGN",
+        requested_delivery_date=None,
+        justification=None,
+        notes=None,
+        details={"source": SHORTAGE_REQUEST_SOURCE},
+        line_items=[old_line],
+        total_estimated_amount=Decimal("0.00"),
+    )
+    built_line = SimpleNamespace(
+        id=uuid.uuid4(),
+        requisition_id=None,
+        position=0,
+        details={"source": SHORTAGE_REQUEST_SOURCE},
+        line_total=Decimal("12500.00"),
+    )
+    service.procurement._build_line = MagicMock(
+        return_value=built_line
+    )
+    service.purchase_requisitions.add_line_item = MagicMock(
+        return_value=built_line
+    )
+    service.purchase_requisitions.get_for_organization = (
+        MagicMock(return_value=requisition)
+    )
+
+    def recalculate(candidate: SimpleNamespace) -> None:
+        candidate.total_estimated_amount = sum(
+            (
+                line.line_total
+                for line in candidate.line_items
+            ),
+            start=Decimal("0.00"),
+        )
+
+    service.procurement._recalculate_total = MagicMock(
+        side_effect=recalculate
+    )
+    service.procurement._record_audit = MagicMock()
+    payload = WorkOrderMaterialPurchaseRequestCreate()
+    work_order = service._get_work_order_or_404.return_value
+
+    result = service._sync_draft_shortage_request(
+        organization_id,
+        work_order,
+        requisition,
+        [shortage],
+        payload,
+        actor_user_id=uuid.uuid4(),
+        actor_membership_id=uuid.uuid4(),
+    )
+
+    assert result is requisition
+    service.purchase_requisitions.delete_line_item.assert_called_once_with(
+        old_line
+    )
+    service.purchase_requisitions.add_line_item.assert_called_once_with(
+        built_line
+    )
+    assert built_line.requisition_id == requisition.id
+    assert requisition.line_items == [built_line]
+    assert requisition.total_estimated_amount == Decimal("12500.00")
+    assert requisition.details["source_requirement_ids"] == [
+        str(shortage.id)
+    ]
+    service.purchase_requisitions.update.assert_called_once_with(
+        requisition
+    )
+    service.db.commit.assert_called_once_with()
 
 
 def test_request_missing_materials_rejects_ready_job() -> None:
