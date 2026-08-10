@@ -390,11 +390,23 @@ def test_goods_receipt_is_tenant_isolated_and_posts_atomically(
 
     finally:
         with integration_session_factory() as db:
+            organization_ids = [
+                organization.id,
+                other_organization.id,
+            ]
+            db.execute(
+                delete(GoodsReceipt).where(
+                    GoodsReceipt.organization_id.in_(organization_ids)
+                )
+            )
+            db.execute(
+                delete(PurchaseOrder).where(
+                    PurchaseOrder.organization_id.in_(organization_ids)
+                )
+            )
             db.execute(
                 delete(Organization).where(
-                    Organization.id.in_(
-                        [organization.id, other_organization.id]
-                    )
+                    Organization.id.in_(organization_ids)
                 )
             )
             db.commit()

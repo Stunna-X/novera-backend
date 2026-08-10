@@ -35,6 +35,7 @@ def test_preferences_cannot_cross_organization_boundary() -> None:
         bind=engine,
         autoflush=False,
         autocommit=False,
+        expire_on_commit=False,
     )
     token = uuid.uuid4().hex
     organization = Organization(
