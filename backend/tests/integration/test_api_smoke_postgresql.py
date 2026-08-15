@@ -10,7 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.main import app
+from app.core.config import Settings
+from app.main import create_application
 from app.models.organization import Organization
 from app.models.user import User
 
@@ -39,7 +40,22 @@ HTTP_METHODS = {
 def api_client() -> Iterator[TestClient]:
     """Run requests through the real FastAPI middleware and routers."""
 
-    with TestClient(app) as client:
+    test_settings = Settings(
+        _env_file=None,
+        DATABASE_URL="postgresql+psycopg2://postgres:postgres@localhost:5432/novera",
+        SECRET_KEY="a" * 48,
+        EMAIL_PROVIDER="manual",
+        APP_ENV="testing",
+        CORS_ORIGINS=[
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://frontend.api-smoke.test",
+        ],
+    )
+
+    test_application = create_application(test_settings)
+
+    with TestClient(test_application) as client:
         yield client
 
 
