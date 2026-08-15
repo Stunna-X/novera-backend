@@ -24,6 +24,9 @@ from app.api.v1.document_deliveries.router import (
 from app.api.v1.email_outbox.router import (
     router as email_outbox_router,
 )
+from app.api.v1.goods_receipts.router import (
+    router as goods_receipt_router,
+)
 from app.api.v1.health.router import router as health_router
 from app.api.v1.inventory.router import router as inventory_router
 from app.api.v1.invoices.router import router as invoice_router
@@ -36,11 +39,40 @@ from app.api.v1.notifications.router import (
 from app.api.v1.organizations.router import (
     router as organization_router,
 )
+from app.api.v1.purchase_orders.router import (
+    router as purchase_order_router,
+)
+from app.api.v1.purchase_requisitions.router import (
+    router as purchase_requisition_router,
+)
 from app.api.v1.quotes.router import router as quote_router
 from app.api.v1.reports.router import router as reports_router
 from app.api.v1.roles.router import router as role_router
 from app.api.v1.scheduling.router import (
     router as scheduling_router,
+)
+from app.api.v1.suppliers.router import router as supplier_router
+from app.api.v1.supplier_bills.router import (
+    router as supplier_bill_router,
+)
+from app.api.v1.supplier_payments.router import (
+    router as supplier_payment_router,
+)
+from app.api.v1.procurement_analytics.router import (
+    router as procurement_analytics_router,
+)
+from app.api.v1.procurement_alerts.router import (
+    router as procurement_alert_router,
+)
+from app.api.v1.supplier_returns.router import (
+    router as supplier_return_router,
+)
+from app.api.v1.supplier_debit_notes.router import (
+    router as supplier_debit_note_router,
+)
+from app.api.v1.procurement_documents.router import (
+    documents_router as procurement_documents_router,
+    evidence_router as procurement_approval_evidence_router,
 )
 from app.api.v1.work_order_checklists.router import (
     router as work_order_checklist_router,
@@ -59,6 +91,10 @@ from app.api.v1.work_orders.router import (
 )
 from app.api.v1.workforce.router import router as workforce_router
 
+
+from app.api.v1.work_order_materials.router import (
+    router as work_order_material_router,
+)
 
 api_router = APIRouter()
 
@@ -104,6 +140,54 @@ api_router.include_router(
 )
 
 api_router.include_router(
+    supplier_router,
+)
+
+api_router.include_router(
+    purchase_requisition_router,
+)
+
+api_router.include_router(
+    purchase_order_router,
+)
+
+api_router.include_router(
+    goods_receipt_router,
+)
+
+api_router.include_router(
+    supplier_bill_router,
+)
+
+api_router.include_router(
+    supplier_payment_router,
+)
+
+api_router.include_router(
+    procurement_analytics_router,
+)
+
+api_router.include_router(
+    procurement_alert_router,
+)
+
+api_router.include_router(
+    supplier_return_router,
+)
+
+api_router.include_router(
+    supplier_debit_note_router,
+)
+
+api_router.include_router(
+    procurement_documents_router,
+)
+
+api_router.include_router(
+    procurement_approval_evidence_router,
+)
+
+api_router.include_router(
     audit_log_router,
 )
 
@@ -131,6 +215,9 @@ api_router.include_router(
     notification_router,
 )
 
+api_router.include_router(
+    work_order_material_router,
+)
 api_router.include_router(
     work_order_checklist_router,
 )

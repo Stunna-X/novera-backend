@@ -71,6 +71,191 @@ PERMISSIONS: dict[str, str] = {
         "Deactivate inventory locations and catalogue items."
     ),
 
+    # Suppliers
+    "suppliers.read": "View organization suppliers.",
+    "suppliers.create": "Create organization suppliers.",
+    "suppliers.update": "Update organization suppliers.",
+    "suppliers.delete": "Deactivate organization suppliers.",
+
+    # Purchase requisitions
+    "purchase_requisitions.read": (
+        "View organization purchase requisitions."
+    ),
+    "purchase_requisitions.create": (
+        "Create organization purchase requisitions."
+    ),
+    "purchase_requisitions.update": (
+        "Update draft or rejected purchase requisitions."
+    ),
+    "purchase_requisitions.submit": (
+        "Submit purchase requisitions for approval."
+    ),
+    "purchase_requisitions.approve": (
+        "Approve or reject submitted purchase requisitions."
+    ),
+    "purchase_requisitions.cancel": (
+        "Cancel eligible purchase requisitions."
+    ),
+
+    # Purchase orders
+    "purchase_orders.read": (
+        "View organization purchase orders."
+    ),
+    "purchase_orders.create": (
+        "Create purchase orders manually or from approved requisitions."
+    ),
+    "purchase_orders.update": (
+        "Update draft purchase orders and line items."
+    ),
+    "purchase_orders.issue": (
+        "Issue purchase orders to suppliers."
+    ),
+    "purchase_orders.acknowledge": (
+        "Record supplier acknowledgement of issued purchase orders."
+    ),
+    "purchase_orders.cancel": (
+        "Cancel eligible purchase orders."
+    ),
+    "purchase_orders.close": (
+        "Close fully received purchase orders."
+    ),
+
+    # Goods receipts
+    "goods_receipts.read": (
+        "View organization goods receipts."
+    ),
+    "goods_receipts.create": (
+        "Create draft goods receipts against purchase orders."
+    ),
+    "goods_receipts.update": (
+        "Update draft goods receipts and line items."
+    ),
+    "goods_receipts.post": (
+        "Post goods receipts and accepted stock atomically."
+    ),
+    "goods_receipts.cancel": (
+        "Cancel draft goods receipts."
+    ),
+
+    # Supplier bills and three-way matching
+    "supplier_bills.read": (
+        "View supplier bills and persisted match results."
+    ),
+    "supplier_bills.create": (
+        "Create draft supplier bills against purchase orders."
+    ),
+    "supplier_bills.update": (
+        "Update draft supplier bills and line items."
+    ),
+    "supplier_bills.submit": (
+        "Submit supplier bills for three-way matching."
+    ),
+    "supplier_bills.match": (
+        "Run purchase-order and goods-receipt matching."
+    ),
+    "supplier_bills.approve": (
+        "Approve matched bills or documented exceptions."
+    ),
+    "supplier_bills.void": (
+        "Void supplier bills while retaining audit history."
+    ),
+
+    # Supplier payments and accounts payable
+    "supplier_payments.read": (
+        "View supplier payments and approved bill balances."
+    ),
+    "supplier_payments.create": (
+        "Post and allocate payments to approved supplier bills."
+    ),
+    "supplier_payments.reverse": (
+        "Reverse supplier payments while retaining audit history."
+    ),
+
+    # Procurement analytics
+    "procurement_analytics.read": (
+        "View tenant-scoped procurement, spend, and payable analytics."
+    ),
+
+    # Procurement workflow alerts
+    "procurement_alerts.read": (
+        "View personal procurement alert preferences and deliveries."
+    ),
+    "procurement_alerts.update": (
+        "Update personal procurement alert preferences."
+    ),
+    "procurement_alerts.dispatch": (
+        "Evaluate and dispatch tenant-scoped procurement workflow alerts."
+    ),
+
+    # Supplier returns
+    "supplier_returns.read": (
+        "View tenant-scoped supplier returns."
+    ),
+    "supplier_returns.create": (
+        "Create draft supplier returns."
+    ),
+    "supplier_returns.update": (
+        "Update draft supplier returns and return lines."
+    ),
+    "supplier_returns.dispatch": (
+        "Dispatch supplier returns and post inventory movements."
+    ),
+    "supplier_returns.complete": (
+        "Confirm supplier return completion."
+    ),
+    "supplier_returns.cancel": (
+        "Cancel draft supplier returns."
+    ),
+
+    # Supplier debit notes and credit settlement
+    "supplier_debit_notes.read": (
+        "View supplier debit notes and credit settlements."
+    ),
+    "supplier_debit_notes.create": (
+        "Create draft supplier debit notes."
+    ),
+    "supplier_debit_notes.update": (
+        "Update draft supplier debit notes and lines."
+    ),
+    "supplier_debit_notes.issue": (
+        "Issue supplier debit notes."
+    ),
+    "supplier_debit_notes.acknowledge": (
+        "Acknowledge supplier debit notes as available credits."
+    ),
+    "supplier_debit_notes.void": (
+        "Void supplier debit notes without active settlements."
+    ),
+    "supplier_debit_notes.settle": (
+        "Apply supplier credits to approved supplier bills."
+    ),
+    "supplier_debit_notes.reverse_settlement": (
+        "Reverse supplier credit settlements."
+    ),
+
+    # Procurement documents and approval evidence
+    "procurement_documents.read": (
+        "View tenant-scoped procurement documents and versions."
+    ),
+    "procurement_documents.create": (
+        "Create procurement document records."
+    ),
+    "procurement_documents.update": (
+        "Update active document metadata and register versions."
+    ),
+    "procurement_documents.verify": (
+        "Verify document checksums and quarantine mismatches."
+    ),
+    "procurement_documents.archive": (
+        "Archive and restore procurement documents."
+    ),
+    "procurement_approval_evidence.read": (
+        "View immutable procurement approval evidence."
+    ),
+    "procurement_approval_evidence.create": (
+        "Record immutable procurement approval evidence."
+    ),
+
     # Projects
     "projects.read": "View projects.",
     "projects.create": "Create projects.",
@@ -204,6 +389,63 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "inventory.create",
             "inventory.update",
             "inventory.delete",
+            "suppliers.read",
+            "suppliers.create",
+            "suppliers.update",
+            "suppliers.delete",
+            "purchase_requisitions.read",
+            "purchase_requisitions.create",
+            "purchase_requisitions.update",
+            "purchase_requisitions.submit",
+            "purchase_requisitions.approve",
+            "purchase_requisitions.cancel",
+            "purchase_orders.read",
+            "purchase_orders.create",
+            "purchase_orders.update",
+            "purchase_orders.issue",
+            "purchase_orders.acknowledge",
+            "purchase_orders.cancel",
+            "purchase_orders.close",
+            "goods_receipts.read",
+            "goods_receipts.create",
+            "goods_receipts.update",
+            "goods_receipts.post",
+            "goods_receipts.cancel",
+            "supplier_bills.read",
+            "supplier_bills.create",
+            "supplier_bills.update",
+            "supplier_bills.submit",
+            "supplier_bills.match",
+            "supplier_bills.approve",
+            "supplier_bills.void",
+            "supplier_payments.read",
+            "supplier_payments.create",
+            "supplier_payments.reverse",
+            "procurement_analytics.read",
+            "procurement_alerts.read",
+            "procurement_alerts.update",
+            "procurement_alerts.dispatch",
+            "supplier_returns.read",
+            "supplier_returns.create",
+            "supplier_returns.update",
+            "supplier_returns.dispatch",
+            "supplier_returns.complete",
+            "supplier_returns.cancel",
+            "supplier_debit_notes.read",
+            "supplier_debit_notes.create",
+            "supplier_debit_notes.update",
+            "supplier_debit_notes.issue",
+            "supplier_debit_notes.acknowledge",
+            "supplier_debit_notes.void",
+            "supplier_debit_notes.settle",
+            "supplier_debit_notes.reverse_settlement",
+            "procurement_documents.read",
+            "procurement_documents.create",
+            "procurement_documents.update",
+            "procurement_documents.verify",
+            "procurement_documents.archive",
+            "procurement_approval_evidence.read",
+            "procurement_approval_evidence.create",
             "projects.read",
             "projects.create",
             "projects.update",
@@ -267,6 +509,47 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "inventory.read",
             "inventory.create",
             "inventory.update",
+            "suppliers.read",
+            "purchase_requisitions.read",
+            "purchase_requisitions.create",
+            "purchase_requisitions.update",
+            "purchase_requisitions.submit",
+            "purchase_requisitions.cancel",
+            "purchase_orders.read",
+            "purchase_orders.create",
+            "purchase_orders.update",
+            "purchase_orders.acknowledge",
+            "goods_receipts.read",
+            "goods_receipts.create",
+            "goods_receipts.update",
+            "goods_receipts.post",
+            "supplier_bills.read",
+            "supplier_bills.create",
+            "supplier_bills.update",
+            "supplier_bills.submit",
+            "supplier_bills.match",
+            "supplier_payments.read",
+            "supplier_payments.create",
+            "procurement_analytics.read",
+            "procurement_alerts.read",
+            "procurement_alerts.update",
+            "procurement_alerts.dispatch",
+            "supplier_returns.read",
+            "supplier_returns.create",
+            "supplier_returns.update",
+            "supplier_returns.dispatch",
+            "supplier_returns.complete",
+            "supplier_debit_notes.read",
+            "supplier_debit_notes.create",
+            "supplier_debit_notes.update",
+            "supplier_debit_notes.issue",
+            "supplier_debit_notes.settle",
+            "procurement_documents.read",
+            "procurement_documents.create",
+            "procurement_documents.update",
+            "procurement_documents.verify",
+            "procurement_approval_evidence.read",
+            "procurement_approval_evidence.create",
             "projects.read",
             "work_orders.read",
             "work_orders.create",
@@ -337,6 +620,19 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "workforce.read",
             "assets.read",
             "inventory.read",
+            "suppliers.read",
+            "purchase_requisitions.read",
+            "purchase_orders.read",
+            "goods_receipts.read",
+            "supplier_bills.read",
+            "supplier_payments.read",
+            "procurement_analytics.read",
+            "procurement_alerts.read",
+            "procurement_alerts.update",
+            "supplier_returns.read",
+            "supplier_debit_notes.read",
+            "procurement_documents.read",
+            "procurement_approval_evidence.read",
             "projects.read",
             "work_orders.read",
             "scheduling.read",

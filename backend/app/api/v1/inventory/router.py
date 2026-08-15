@@ -244,12 +244,12 @@ def deactivate_inventory_location(
     service.deactivate_location(
         organization_id=context.organization.id,
         location_id=location_id,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
-        actor_user_id=context.current_user.id,
-        actor_membership_id=context.membership.id,
     )
 
 
@@ -463,12 +463,12 @@ def deactivate_inventory_item(
     service.deactivate_item(
         organization_id=context.organization.id,
         item_id=item_id,
+        actor_user_id=context.current_user.id,
+        actor_membership_id=context.membership.id,
     )
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
-        actor_user_id=context.current_user.id,
-        actor_membership_id=context.membership.id,
     )
 
 
