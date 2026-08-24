@@ -34,7 +34,8 @@ from app.schemas.membership import (
 )
 
 
-OWNER_ROLE_NAME = "owner"
+OWNER_ROLE_NAME = "Owner"
+OWNER_ROLE_NAME_NORMALIZED = OWNER_ROLE_NAME.lower()
 
 
 class MembershipService:
@@ -130,8 +131,12 @@ class MembershipService:
         Retrieve a role by name or raise 404.
         """
 
+        normalized_role_name = (
+            role_name.strip().lower()
+        )
+
         role = self.roles.get_by_name(
-            role_name
+            normalized_role_name
         )
 
         if role is None:
@@ -202,7 +207,7 @@ class MembershipService:
                 Membership.organization_id
                 == organization_id,
                 func.lower(Role.name)
-                == OWNER_ROLE_NAME,
+                == OWNER_ROLE_NAME_NORMALIZED,
             )
             .scalar()
             or 0
@@ -220,7 +225,7 @@ class MembershipService:
             membership.role
         )
 
-        if role_name != OWNER_ROLE_NAME:
+        if role_name != OWNER_ROLE_NAME_NORMALIZED:
             return
 
         owner_count = self._count_owners(
@@ -250,7 +255,7 @@ class MembershipService:
             )
         )
 
-        if requester_role_name != OWNER_ROLE_NAME:
+        if requester_role_name != OWNER_ROLE_NAME_NORMALIZED:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
@@ -322,7 +327,7 @@ class MembershipService:
             self._normalized_role_name(role)
         )
 
-        if requested_role_name == OWNER_ROLE_NAME:
+        if requested_role_name == OWNER_ROLE_NAME_NORMALIZED:
             self._require_owner_for_owner_action(
                 requester_membership
             )
@@ -358,8 +363,8 @@ class MembershipService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "This user already belongs "
-                    "to the organization."
+                    "The membership could not be created "
+                    "because it conflicts with existing data."
                 ),
             ) from exc
 
@@ -441,8 +446,10 @@ class MembershipService:
         )
 
         owner_is_involved = (
-            current_role_name == OWNER_ROLE_NAME
-            or new_role_name == OWNER_ROLE_NAME
+            current_role_name
+            == OWNER_ROLE_NAME_NORMALIZED
+            or new_role_name
+            == OWNER_ROLE_NAME_NORMALIZED
         )
 
         if owner_is_involved:
@@ -451,8 +458,10 @@ class MembershipService:
             )
 
         if (
-            current_role_name == OWNER_ROLE_NAME
-            and new_role_name != OWNER_ROLE_NAME
+            current_role_name
+            == OWNER_ROLE_NAME_NORMALIZED
+            and new_role_name
+            != OWNER_ROLE_NAME_NORMALIZED
         ):
             self._ensure_not_sole_owner(
                 target_membership
@@ -515,7 +524,10 @@ class MembershipService:
             )
         )
 
-        if target_role_name == OWNER_ROLE_NAME:
+        if (
+            target_role_name
+            == OWNER_ROLE_NAME_NORMALIZED
+        ):
             self._require_owner_for_owner_action(
                 requester_membership
             )

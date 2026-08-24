@@ -22,6 +22,8 @@ from app.models.permission import Permission
 from app.models.role import Role
 from app.models.role_permission import RolePermission
 
+CANONICAL_OWNER_ROLE_NAME = "Owner"
+
 
 PERMISSIONS: dict[str, str] = {
     # Organizations
@@ -347,7 +349,7 @@ PERMISSIONS: dict[str, str] = {
 
 
 ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
-    "Owner": {
+    CANONICAL_OWNER_ROLE_NAME: {
         "description": (
             "Full administrative control over an organization."
         ),
