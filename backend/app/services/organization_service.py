@@ -103,8 +103,11 @@ class OrganizationService:
         """
         Retrieve the system Owner role.
 
-        Creates the role during initial platform bootstrap
-        when it does not already exist.
+        If the Owner role does not exist, create it.
+
+        This method is intentionally idempotent so organization
+        creation can safely bootstrap the Owner role when the
+        access-control seed has not yet been executed.
         """
 
         owner_role = self.roles.get_by_name(
@@ -126,6 +129,7 @@ class OrganizationService:
         self.db.add(
             owner_role
         )
+
         self.db.flush()
 
         return owner_role
@@ -211,6 +215,7 @@ class OrganizationService:
             self.db.add(
                 organization
             )
+
             self.db.flush()
 
             membership = Membership(
@@ -222,7 +227,9 @@ class OrganizationService:
             self.db.add(
                 membership
             )
+
             self.db.commit()
+
             self.db.refresh(
                 organization
             )
