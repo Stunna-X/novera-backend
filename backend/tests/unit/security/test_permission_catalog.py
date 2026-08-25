@@ -143,23 +143,30 @@ def test_all_role_permissions_exist_in_catalogue() -> None:
         )
 
 
-def test_owner_and_admin_receive_full_catalogue() -> None:
+def test_owner_and_admin_receive_expected_catalogue() -> None:
     """
-    Owner and Admin retain full organization control.
+    Owner receives the full catalogue.
+
+    Admin receives the full operational catalogue but cannot
+    perform Owner-only organization-control actions.
     """
 
     expected_permissions = set(PERMISSIONS)
 
-    assert (
-        ROLE_DEFINITIONS["Owner"]["permissions"]
-        == expected_permissions
-    )
+    owner_permissions = ROLE_DEFINITIONS["Owner"]["permissions"]
+    admin_permissions = ROLE_DEFINITIONS["Admin"]["permissions"]
 
-    assert (
-        ROLE_DEFINITIONS["Admin"]["permissions"]
-        == expected_permissions
-    )
+    assert owner_permissions == expected_permissions
 
+    owner_only_permissions = {
+        "organizations.deactivate",
+        "roles.assign",
+        "memberships.delete",
+    }
+
+    assert admin_permissions == (
+        expected_permissions - owner_only_permissions
+    )
 
 def test_document_delivery_routes_use_delivery_permissions() -> None:
     """

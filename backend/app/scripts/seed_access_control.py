@@ -360,7 +360,14 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "Administrative access to organization settings, "
             "members, finance, and operations."
         ),
-        "permissions": set(PERMISSIONS),
+        "permissions": (
+            set(PERMISSIONS)
+            - {
+                "organizations.deactivate",
+                "roles.assign",
+                "memberships.delete",
+            }
+        ),
     },
     "Operations Manager": {
         "description": (

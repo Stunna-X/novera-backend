@@ -1,12 +1,21 @@
-from passlib.context import CryptContext
+"""Password hashing and verification utilities."""
 
-pwd_context = CryptContext(
-    schemes=["argon2"],
-    deprecated="auto"
-)
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerificationError
+from argon2.exceptions import VerifyMismatchError
 
-def hash_password(password: str):
-    return pwd_context.hash(password)
 
-def verify_password(plain: str, hashed: str):
-    return pwd_context.verify(plain, hashed)
+password_hasher = PasswordHasher()
+
+
+def hash_password(password: str) -> str:
+    """Hash a plaintext password using Argon2id."""
+    return password_hasher.hash(password)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    """Verify a plaintext password against an Argon2 hash."""
+    try:
+        return password_hasher.verify(hashed, plain)
+    except (VerifyMismatchError, VerificationError, InvalidHashError):
+        return False
