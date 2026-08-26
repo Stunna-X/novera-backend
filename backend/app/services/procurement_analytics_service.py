@@ -63,12 +63,12 @@ class ProcurementAnalyticsService:
         )
         if resolved_from > resolved_to:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="date_from must not be after date_to.",
             )
         if (resolved_to - resolved_from).days + 1 > cls.MAX_WINDOW_DAYS:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
                     "Procurement reporting ranges may not exceed "
                     f"{cls.MAX_WINDOW_DAYS} days."
@@ -83,7 +83,7 @@ class ProcurementAnalyticsService:
         normalized = currency.strip().upper()
         if len(normalized) != 3:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="currency must contain exactly three characters.",
             )
         return normalized

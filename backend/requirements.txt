@@ -1,7 +1,7 @@
 alembic==1.18.4
+argon2-cffi==25.1.0
 email-validator==2.3.0
 fastapi==0.136.1
-passlib[argon2]==1.7.4
 psycopg2-binary==2.9.12
 pydantic==2.13.4
 pydantic-settings==2.14.2
