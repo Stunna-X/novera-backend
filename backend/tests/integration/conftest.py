@@ -6,8 +6,10 @@ import os
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
+from dotenv import dotenv_values
 from sqlalchemy import create_engine, delete, inspect, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
@@ -18,6 +20,34 @@ from app.models.inventory import InventoryItem, InventoryLocation
 from app.models.organization import Organization
 from app.models.user import User
 from app.models.work_order import WorkOrder
+
+
+# ---------------------------------------------------------------------------
+# Test environment configuration
+# ---------------------------------------------------------------------------
+#
+# Do NOT call load_dotenv() here.
+#
+# The application's .env contains development settings such as:
+#
+#     APP_ENV=development
+#     DEBUG=true
+#
+# Loading the entire file into os.environ contaminates the pytest process
+# and causes unrelated production-configuration tests to see DEBUG=true.
+#
+# Instead, read the .env file without loading it globally and expose ONLY
+# TEST_DATABASE_URL to the integration-test process.
+# ---------------------------------------------------------------------------
+
+_ENV_FILE = Path(".env")
+
+if not os.getenv("TEST_DATABASE_URL") and _ENV_FILE.is_file():
+    _test_env = dotenv_values(_ENV_FILE)
+    _test_database_url = _test_env.get("TEST_DATABASE_URL")
+
+    if _test_database_url:
+        os.environ["TEST_DATABASE_URL"] = _test_database_url
 
 
 @dataclass(frozen=True)
