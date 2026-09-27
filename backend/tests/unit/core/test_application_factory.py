@@ -20,6 +20,7 @@ def make_settings(**overrides) -> Settings:
         SECRET_KEY="a" * 48,
         EMAIL_PROVIDER="manual",
         CORS_ORIGINS=["https://app.novera.example"],
+        FRONTEND_URL="https://app.novera.example",
         **overrides,
     )
 

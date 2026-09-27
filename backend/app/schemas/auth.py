@@ -75,3 +75,33 @@ class AuthResponse(BaseModel):
     refresh_token: str
 
     token_type: str = "Bearer"
+
+
+class ForgotPasswordSchema(BaseModel):
+    """Request a password-reset email."""
+
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Generic response for password-reset requests."""
+
+    message: str
+
+
+class ResetPasswordSchema(BaseModel):
+    """Complete a password reset using a single-use token."""
+
+    token: str = Field(
+        min_length=32,
+    )
+
+    password: str = Field(
+        min_length=8,
+    )
+
+
+class ResetPasswordResponse(BaseModel):
+    """Response returned after a successful password reset."""
+
+    message: str

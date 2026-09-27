@@ -31,6 +31,15 @@ from app.models.membership import Membership
 from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.permission import Permission
+from app.models.procurement_alert import (
+    ProcurementAlertDelivery,
+    ProcurementAlertPreference,
+)
+from app.models.procurement_document import (
+    ProcurementApprovalEvidence,
+    ProcurementDocument,
+    ProcurementDocumentVersion,
+)
 from app.models.purchase_order import (
     PurchaseOrder,
     PurchaseOrderLineItem,
@@ -57,6 +66,13 @@ from app.models.supplier_payment import (
     SupplierPayment,
     SupplierPaymentAllocation,
 )
+from app.models.supplier_return import (
+    SupplierCreditSettlement,
+    SupplierDebitNote,
+    SupplierDebitNoteLineItem,
+    SupplierReturn,
+    SupplierReturnLineItem,
+)
 from app.models.user import User
 from app.models.work_order import (
     WorkOrder,
@@ -64,16 +80,21 @@ from app.models.work_order import (
     WorkOrderWorkforceAssignment,
 )
 from app.models.work_order_activity import WorkOrderActivity
-from app.models.work_order_checklist import (
-    WorkOrderChecklistItem,
-)
+from app.models.work_order_checklist import WorkOrderChecklistItem
 from app.models.work_order_closeout import WorkOrderCloseout
 from app.models.work_order_expense import WorkOrderExpense
+from app.models.work_order_material import (
+    WorkOrderMaterialRequirement,
+)
+from app.models.work_order_material_shortage_allowance import (
+    WorkOrderMaterialShortageAllowance,
+)
 from app.models.work_order_note import (
     WorkOrderNote,
     WorkOrderNoteAttachment,
 )
 from app.models.workforce_profile import WorkforceProfile
+from app.models.password_reset_token import PasswordResetToken
 
 
 __all__ = [
@@ -97,6 +118,11 @@ __all__ = [
     "Notification",
     "Organization",
     "Permission",
+    "ProcurementAlertDelivery",
+    "ProcurementAlertPreference",
+    "ProcurementApprovalEvidence",
+    "ProcurementDocument",
+    "ProcurementDocumentVersion",
     "PurchaseOrder",
     "PurchaseOrderLineItem",
     "PurchaseRequisition",
@@ -113,6 +139,11 @@ __all__ = [
     "SupplierBillMatchResult",
     "SupplierPayment",
     "SupplierPaymentAllocation",
+    "SupplierCreditSettlement",
+    "SupplierDebitNote",
+    "SupplierDebitNoteLineItem",
+    "SupplierReturn",
+    "SupplierReturnLineItem",
     "User",
     "WorkOrder",
     "WorkOrderActivity",
@@ -120,31 +151,11 @@ __all__ = [
     "WorkOrderChecklistItem",
     "WorkOrderCloseout",
     "WorkOrderExpense",
+    "WorkOrderMaterialRequirement",
+    "WorkOrderMaterialShortageAllowance",
     "WorkOrderNote",
     "WorkOrderNoteAttachment",
     "WorkOrderWorkforceAssignment",
     "WorkforceProfile",
+    "PasswordResetToken",
 ]
-from app.models.procurement_alert import (
-    ProcurementAlertDelivery,
-    ProcurementAlertPreference,
-)
-from app.models.supplier_return import (
-    SupplierCreditSettlement,
-    SupplierDebitNote,
-    SupplierDebitNoteLineItem,
-    SupplierReturn,
-    SupplierReturnLineItem,
-)
-from app.models.procurement_document import (
-    ProcurementApprovalEvidence,
-    ProcurementDocument,
-    ProcurementDocumentVersion,
-)
-
-from app.models.work_order_material import (
-    WorkOrderMaterialRequirement,
-)
-
-if "WorkOrderMaterialRequirement" not in __all__:
-    __all__.append("WorkOrderMaterialRequirement")

@@ -11,8 +11,14 @@ import pytest
 from fastapi import HTTPException
 
 import app.services.auth_service as auth_service_module
+from app.email.providers.base import EmailProviderError
 from app.enums.user import UserStatus
-from app.schemas.auth import LoginSchema, RegisterSchema
+from app.schemas.auth import (
+    ForgotPasswordSchema,
+    LoginSchema,
+    RegisterSchema,
+    ResetPasswordSchema,
+)
 from app.services.auth_service import AuthService
 
 
@@ -39,6 +45,8 @@ def service() -> AuthService:
     instance = AuthService(MagicMock())
     instance.users = MagicMock()
     instance.refresh_tokens = MagicMock()
+    instance.password_reset_tokens = MagicMock()
+    instance.auth_email = MagicMock()
     return instance
 
 
@@ -135,9 +143,7 @@ def test_login_rejects_invalid_credentials(
         )
 
     assert exc_info.value.status_code == 401
-    assert exc_info.value.detail == (
-        "Invalid email or password."
-    )
+    assert exc_info.value.detail == "Invalid email or password."
     assert exc_info.value.headers == {
         "WWW-Authenticate": "Bearer"
     }
@@ -246,9 +252,7 @@ def test_create_tokens_persists_only_refresh_token_hash(
     }
     assert stored_record.user_id == user.id
     assert stored_record.token_hash == (
-        AuthService._hash_refresh_token(
-            "raw-refresh-token"
-        )
+        AuthService._hash_refresh_token("raw-refresh-token")
     )
     assert stored_record.token_hash != "raw-refresh-token"
     assert stored_record.expires_at == datetime.fromtimestamp(
@@ -290,9 +294,7 @@ def test_refresh_rejects_missing_database_record(
         service.refresh("refresh-token")
 
     assert exc_info.value.status_code == 401
-    assert exc_info.value.detail == (
-        "Refresh token was not found."
-    )
+    assert exc_info.value.detail == "Refresh token was not found."
 
 
 def test_refresh_rejects_subject_mismatch(
@@ -309,9 +311,7 @@ def test_refresh_rejects_subject_mismatch(
         "verify_refresh_token",
         lambda token: {"sub": str(uuid.uuid4())},
     )
-    service.refresh_tokens.get_by_token_hash.return_value = (
-        stored_token
-    )
+    service.refresh_tokens.get_by_token_hash.return_value = stored_token
 
     with pytest.raises(HTTPException) as exc_info:
         service.refresh("refresh-token")
@@ -335,9 +335,7 @@ def test_refresh_replay_revokes_all_user_sessions(
         "verify_refresh_token",
         lambda token: {"sub": str(user_id)},
     )
-    service.refresh_tokens.get_by_token_hash.return_value = (
-        stored_token
-    )
+    service.refresh_tokens.get_by_token_hash.return_value = stored_token
 
     with pytest.raises(HTTPException) as exc_info:
         service.refresh("refresh-token")
@@ -346,9 +344,8 @@ def test_refresh_replay_revokes_all_user_sessions(
     assert exc_info.value.detail == (
         "Refresh token has already been revoked."
     )
-    (
-        service.refresh_tokens.revoke_all_for_user
-        .assert_called_once_with(user_id)
+    service.refresh_tokens.revoke_all_for_user.assert_called_once_with(
+        user_id
     )
 
 
@@ -367,17 +364,13 @@ def test_refresh_rejects_expired_database_record(
         "verify_refresh_token",
         lambda token: {"sub": str(user_id)},
     )
-    service.refresh_tokens.get_by_token_hash.return_value = (
-        stored_token
-    )
+    service.refresh_tokens.get_by_token_hash.return_value = stored_token
 
     with pytest.raises(HTTPException) as exc_info:
         service.refresh("refresh-token")
 
     assert exc_info.value.status_code == 401
-    assert exc_info.value.detail == (
-        "Refresh token has expired."
-    )
+    assert exc_info.value.detail == "Refresh token has expired."
 
 
 def test_refresh_rejects_missing_user(
@@ -395,9 +388,7 @@ def test_refresh_rejects_missing_user(
         "verify_refresh_token",
         lambda token: {"sub": str(user_id)},
     )
-    service.refresh_tokens.get_by_token_hash.return_value = (
-        stored_token
-    )
+    service.refresh_tokens.get_by_token_hash.return_value = stored_token
     service.users.get.return_value = None
 
     with pytest.raises(HTTPException) as exc_info:
@@ -432,18 +423,15 @@ def test_refresh_revokes_all_sessions_for_unavailable_user(
         "verify_refresh_token",
         lambda token: {"sub": str(user.id)},
     )
-    service.refresh_tokens.get_by_token_hash.return_value = (
-        stored_token
-    )
+    service.refresh_tokens.get_by_token_hash.return_value = stored_token
     service.users.get.return_value = user
 
     with pytest.raises(HTTPException) as exc_info:
         service.refresh("refresh-token")
 
     assert exc_info.value.status_code == 403
-    (
-        service.refresh_tokens.revoke_all_for_user
-        .assert_called_once_with(user.id)
+    service.refresh_tokens.revoke_all_for_user.assert_called_once_with(
+        user.id
     )
     service.refresh_tokens.revoke.assert_not_called()
 
@@ -463,9 +451,7 @@ def test_refresh_rotates_active_token(
         "verify_refresh_token",
         lambda token: {"sub": str(user.id)},
     )
-    service.refresh_tokens.get_by_token_hash.return_value = (
-        stored_token
-    )
+    service.refresh_tokens.get_by_token_hash.return_value = stored_token
     service.users.get.return_value = user
     service._create_tokens_for_user = MagicMock(
         return_value=token_response()
@@ -473,9 +459,7 @@ def test_refresh_rotates_active_token(
 
     result = service.refresh("refresh-token")
 
-    service.refresh_tokens.revoke.assert_called_once_with(
-        stored_token
-    )
+    service.refresh_tokens.revoke.assert_called_once_with(stored_token)
     service._create_tokens_for_user.assert_called_once_with(user)
     assert result == token_response()
 
@@ -484,18 +468,12 @@ def test_logout_revokes_known_active_token(
     service: AuthService,
 ) -> None:
     stored_token = SimpleNamespace(revoked=False)
-    service.refresh_tokens.get_by_token_hash.return_value = (
-        stored_token
-    )
+    service.refresh_tokens.get_by_token_hash.return_value = stored_token
 
     result = service.logout("refresh-token")
 
-    service.refresh_tokens.revoke.assert_called_once_with(
-        stored_token
-    )
-    assert result == {
-        "message": "Logged out successfully."
-    }
+    service.refresh_tokens.revoke.assert_called_once_with(stored_token)
+    assert result == {"message": "Logged out successfully."}
 
 
 @pytest.mark.parametrize(
@@ -509,13 +487,362 @@ def test_logout_is_idempotent(
     service: AuthService,
     stored_token: SimpleNamespace | None,
 ) -> None:
-    service.refresh_tokens.get_by_token_hash.return_value = (
-        stored_token
-    )
+    service.refresh_tokens.get_by_token_hash.return_value = stored_token
 
     result = service.logout("refresh-token")
 
     service.refresh_tokens.revoke.assert_not_called()
-    assert result == {
-        "message": "Logged out successfully."
-    }
+    assert result == {"message": "Logged out successfully."}
+
+
+# ---------------------------------------------------------------------------
+# Password reset
+# ---------------------------------------------------------------------------
+
+
+GENERIC_RESET_MESSAGE = (
+    "If an account exists for that email, "
+    "we've sent password reset instructions."
+)
+
+RESET_SUCCESS_MESSAGE = (
+    "Your password has been reset successfully. "
+    "You can now sign in with your new password."
+)
+
+VALID_RESET_TOKEN = "valid-reset-token-" + ("x" * 32)
+
+
+def make_reset_token(
+    *,
+    user_id: uuid.UUID,
+    token_hash: str = "hashed-reset-token",
+    expires_at: datetime | None = None,
+    used_at: datetime | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at
+        or datetime.now(UTC) + timedelta(minutes=30),
+        used_at=used_at,
+    )
+
+
+def test_request_password_reset_returns_generic_response_for_unknown_email(
+    service: AuthService,
+) -> None:
+    service.users.get_by_email.return_value = None
+
+    result = service.request_password_reset(
+        ForgotPasswordSchema(email="UNKNOWN@EXAMPLE.COM")
+    )
+
+    assert result == {"message": GENERIC_RESET_MESSAGE}
+    service.password_reset_tokens.create_token.assert_not_called()
+    service.auth_email.send_password_reset_email.assert_not_called()
+
+
+def test_request_password_reset_creates_hashed_token_and_sends_email(
+    service: AuthService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = make_user()
+    service.users.get_by_email.return_value = user
+
+    monkeypatch.setattr(
+        auth_service_module.secrets,
+        "token_urlsafe",
+        lambda length: "raw-reset-token",
+    )
+
+    result = service.request_password_reset(
+        ForgotPasswordSchema(email="USER@EXAMPLE.COM")
+    )
+
+    created_token = (
+        service.password_reset_tokens.create_token.call_args.args[0]
+    )
+
+    assert result == {"message": GENERIC_RESET_MESSAGE}
+    assert created_token.user_id == user.id
+    assert created_token.token_hash == (
+        AuthService._hash_password_reset_token("raw-reset-token")
+    )
+    assert created_token.token_hash != "raw-reset-token"
+    assert created_token.expires_at > datetime.now(UTC)
+
+    service.users.get_by_email.assert_called_once_with(
+        "user@example.com"
+    )
+    service.auth_email.send_password_reset_email.assert_called_once_with(
+        email=user.email,
+        first_name=user.first_name,
+        token="raw-reset-token",
+    )
+
+
+@pytest.mark.parametrize(
+    "user_status",
+    [
+        UserStatus.LOCKED,
+        UserStatus.INACTIVE,
+    ],
+)
+def test_request_password_reset_returns_generic_response_for_unavailable_account(
+    service: AuthService,
+    user_status: UserStatus,
+) -> None:
+    user = make_user(status=user_status)
+    service.users.get_by_email.return_value = user
+
+    result = service.request_password_reset(
+        ForgotPasswordSchema(email=user.email)
+    )
+
+    assert result == {"message": GENERIC_RESET_MESSAGE}
+    service.password_reset_tokens.create_token.assert_not_called()
+    service.auth_email.send_password_reset_email.assert_not_called()
+
+
+def test_request_password_reset_removes_token_when_email_fails(
+    service: AuthService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = make_user()
+    service.users.get_by_email.return_value = user
+
+    monkeypatch.setattr(
+        auth_service_module.secrets,
+        "token_urlsafe",
+        lambda length: "raw-reset-token",
+    )
+
+    service.auth_email.send_password_reset_email.side_effect = (
+        EmailProviderError("SMTP unavailable", retryable=True)
+    )
+
+    result = service.request_password_reset(
+        ForgotPasswordSchema(email=user.email)
+    )
+
+    assert result == {"message": GENERIC_RESET_MESSAGE}
+
+    reset_token = (
+        service.password_reset_tokens.create_token.call_args.args[0]
+    )
+
+    service.db.delete.assert_called_once_with(reset_token)
+    service.db.commit.assert_called_once_with()
+    service.auth_email.send_password_reset_email.assert_called_once_with(
+        email=user.email,
+        first_name=user.first_name,
+        token="raw-reset-token",
+    )
+
+
+def test_reset_password_rejects_invalid_token(
+    service: AuthService,
+) -> None:
+    service.password_reset_tokens.get_by_token_hash.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.reset_password(
+            ResetPasswordSchema(
+                token=VALID_RESET_TOKEN,
+                password="newpassword123",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == (
+        "Invalid or expired password reset token."
+    )
+
+
+@pytest.mark.parametrize(
+    "reset_token",
+    [
+        make_reset_token(
+            user_id=uuid.uuid4(),
+            expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        ),
+        make_reset_token(
+            user_id=uuid.uuid4(),
+            used_at=datetime.now(UTC),
+        ),
+    ],
+)
+def test_reset_password_rejects_expired_or_used_token(
+    service: AuthService,
+    reset_token: SimpleNamespace,
+) -> None:
+    service.password_reset_tokens.get_by_token_hash.return_value = (
+        reset_token
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.reset_password(
+            ResetPasswordSchema(
+                token=VALID_RESET_TOKEN,
+                password="newpassword123",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == (
+        "Invalid or expired password reset token."
+    )
+
+
+def test_reset_password_rejects_missing_user(
+    service: AuthService,
+) -> None:
+    user_id = uuid.uuid4()
+    reset_token = make_reset_token(user_id=user_id)
+
+    service.password_reset_tokens.get_by_token_hash.return_value = (
+        reset_token
+    )
+    service.users.get.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.reset_password(
+            ResetPasswordSchema(
+                token=VALID_RESET_TOKEN,
+                password="newpassword123",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == (
+        "Invalid or expired password reset token."
+    )
+
+
+@pytest.mark.parametrize(
+    "user_status",
+    [
+        UserStatus.LOCKED,
+        UserStatus.INACTIVE,
+    ],
+)
+def test_reset_password_rejects_unavailable_account(
+    service: AuthService,
+    user_status: UserStatus,
+) -> None:
+    user = make_user(status=user_status)
+    reset_token = make_reset_token(user_id=user.id)
+
+    service.password_reset_tokens.get_by_token_hash.return_value = (
+        reset_token
+    )
+    service.users.get.return_value = user
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.reset_password(
+            ResetPasswordSchema(
+                token=VALID_RESET_TOKEN,
+                password="newpassword123",
+            )
+        )
+
+    assert exc_info.value.status_code == 403
+    service.db.commit.assert_not_called()
+
+
+def test_reset_password_updates_password_and_revokes_sessions(
+    service: AuthService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = make_user()
+    reset_token = make_reset_token(user_id=user.id)
+
+    service.password_reset_tokens.get_by_token_hash.return_value = (
+        reset_token
+    )
+    service.users.get.return_value = user
+
+    monkeypatch.setattr(
+        auth_service_module,
+        "hash_password",
+        lambda password: f"hashed::{password}",
+    )
+
+    result = service.reset_password(
+        ResetPasswordSchema(
+            token=VALID_RESET_TOKEN,
+            password="newpassword123",
+        )
+    )
+
+    assert result == {"message": RESET_SUCCESS_MESSAGE}
+    assert user.password_hash == "hashed::newpassword123"
+    assert reset_token.used_at is not None
+
+    service.db.add.assert_any_call(user)
+    service.db.add.assert_any_call(reset_token)
+    service.db.commit.assert_called_once_with()
+    service.db.rollback.assert_not_called()
+
+
+def test_reset_password_invalidates_other_reset_tokens_and_sessions(
+    service: AuthService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = make_user()
+    reset_token = make_reset_token(user_id=user.id)
+
+    service.password_reset_tokens.get_by_token_hash.return_value = (
+        reset_token
+    )
+    service.users.get.return_value = user
+
+    monkeypatch.setattr(
+        auth_service_module,
+        "hash_password",
+        lambda password: f"hashed::{password}",
+    )
+
+    result = service.reset_password(
+        ResetPasswordSchema(
+            token=VALID_RESET_TOKEN,
+            password="newpassword123",
+        )
+    )
+
+    assert result == {"message": RESET_SUCCESS_MESSAGE}
+    assert service.db.query.call_count == 2
+    service.db.commit.assert_called_once_with()
+    service.db.rollback.assert_not_called()
+
+
+def test_reset_password_rolls_back_when_commit_fails(
+    service: AuthService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = make_user()
+    reset_token = make_reset_token(user_id=user.id)
+
+    service.password_reset_tokens.get_by_token_hash.return_value = (
+        reset_token
+    )
+    service.users.get.return_value = user
+    service.db.commit.side_effect = RuntimeError("database failure")
+
+    monkeypatch.setattr(
+        auth_service_module,
+        "hash_password",
+        lambda password: f"hashed::{password}",
+    )
+
+    with pytest.raises(RuntimeError, match="database failure"):
+        service.reset_password(
+            ResetPasswordSchema(
+                token=VALID_RESET_TOKEN,
+                password="newpassword123",
+            )
+        )
+
+    service.db.rollback.assert_called_once_with()

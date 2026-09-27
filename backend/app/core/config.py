@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "development"
     API_V1_PREFIX: str = "/api/v1"
+    FRONTEND_URL: str = "http://localhost:5173"
     DEBUG: bool = False
     ENABLE_API_DOCS: bool = True
 
@@ -137,11 +138,13 @@ class Settings(BaseSettings):
         default_factory=lambda: [
             "http://localhost:5173",
             "http://127.0.0.1:5173",
+            "http://localhost:4173",
+            "http://127.0.0.1:4173",
         ]
     )
 
     @property
-    def is_deployed_environment(self) -> bool:
+    def is_deployed_environment (self) -> bool:
         """Return whether staging/production safeguards should apply."""
 
         return self.APP_ENV in {"staging", "production"}
@@ -397,6 +400,17 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "CORS origins must use HTTPS in staging and production."
                 )
+
+        frontend_url = self.FRONTEND_URL.strip().rstrip("/")
+        parsed_frontend_url = urlparse(frontend_url)
+
+        if (
+                parsed_frontend_url.scheme != "https"
+                or not parsed_frontend_url.netloc
+        ):
+            raise ValueError(
+                "FRONTEND_URL must use HTTPS in staging and production."
+            )
 
         if self.EMAIL_PROVIDER == "development":
             raise ValueError(

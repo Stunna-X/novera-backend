@@ -20,6 +20,7 @@ def build_settings(**overrides) -> Settings:
         "SECRET_KEY": STRONG_SECRET,
         "EMAIL_PROVIDER": "manual",
         "CORS_ORIGINS": ["https://app.novera.example"],
+        "FRONTEND_URL": "https://app.novera.example",
         **overrides,
     }
 

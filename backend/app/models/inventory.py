@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from app.models.organization import Organization
     from app.models.user import User
     from app.models.work_order import WorkOrder
+    from app.models.work_order_material import WorkOrderMaterialRequirement
 
 
 class InventoryLocation(BaseModel):
@@ -563,6 +564,10 @@ class InventoryReservation(BaseModel):
             "location_id",
         ),
         Index(
+            "ix_inventory_reservations_material_requirement",
+            "work_order_material_requirement_id",
+        ),
+        Index(
             "ix_inventory_reservations_organization_created",
             "organization_id",
             "created_at",
@@ -606,6 +611,17 @@ class InventoryReservation(BaseModel):
             ondelete="CASCADE",
         ),
         nullable=False,
+    )
+
+    work_order_material_requirement_id: Mapped[
+        uuid.UUID | None
+    ] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "work_order_material_requirements.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
     )
 
     quantity_reserved: Mapped[Decimal] = mapped_column(
@@ -714,6 +730,14 @@ class InventoryReservation(BaseModel):
 
     work_order: Mapped["WorkOrder"] = relationship(
         "WorkOrder",
+        lazy="joined",
+    )
+
+    work_order_material_requirement: Mapped[
+        "WorkOrderMaterialRequirement | None"
+    ] = relationship(
+        "WorkOrderMaterialRequirement",
+        foreign_keys=[work_order_material_requirement_id],
         lazy="joined",
     )
 
