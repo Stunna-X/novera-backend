@@ -271,6 +271,26 @@ PERMISSIONS: dict[str, str] = {
     "work_orders.delete": "Delete work orders.",
     "work_orders.assign": "Assign work orders to field personnel.",
     "work_orders.status": "Update work-order status.",
+        
+    "work_order_material_shortage_allowances.read": (
+        "View work-order material shortage allowances."
+    ),
+    "work_order_material_shortage_allowances.create": (
+        "Create work-order material shortage allowances."
+    ),
+    "work_order_material_shortage_allowances.update": (
+        "Edit draft or rejected work-order material shortage allowances."
+    ),
+    "work_order_material_shortage_allowances.submit": (
+        "Submit work-order material shortage allowances for approval."
+    ),
+    "work_order_material_shortage_allowances.approve": (
+        "Approve or reject submitted work-order material shortage allowances."
+    ),
+    "work_order_material_shortage_allowances.cancel": (
+        "Cancel or revoke eligible work-order material shortage allowances."
+    ),
+
 
     # Scheduling
     "scheduling.read": "View schedules and dispatch information.",
@@ -501,6 +521,12 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "reports.read",
             "reports.export",
             "audit_logs.read",
+	    "work_order_material_shortage_allowances.read",
+	    "work_order_material_shortage_allowances.create",
+	    "work_order_material_shortage_allowances.update",
+	    "work_order_material_shortage_allowances.submit",
+	    "work_order_material_shortage_allowances.approve",
+	    "work_order_material_shortage_allowances.cancel",
         },
     },
     "Supervisor": {
@@ -592,6 +618,12 @@ ROLE_DEFINITIONS: dict[str, dict[str, object]] = {
             "dashboard.read",
             "reports.read",
             "audit_logs.read",
+	    "work_order_material_shortage_allowances.read",
+	    "work_order_material_shortage_allowances.create",
+	    "work_order_material_shortage_allowances.update",
+	    "work_order_material_shortage_allowances.submit",
+	    "work_order_material_shortage_allowances.approve",
+	    "work_order_material_shortage_allowances.cancel",
         },
     },
     "Technician": {
