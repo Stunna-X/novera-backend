@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from typing import Any
@@ -18,6 +19,7 @@ from app.models.inventory import (
     InventoryMovement,
     InventoryReservation,
 )
+from app.models.work_order_material import WorkOrderMaterialRequirement
 from app.schemas.inventory import (
     CreateInventoryReservationSchema,
     IssueInventoryStockSchema,
@@ -222,6 +224,160 @@ def test_concurrent_issues_cannot_overdraw_stock(
         assert issue_count == 1
 
 
+
+def test_reservation_requires_matching_material_requirement(
+    integration_session_factory: sessionmaker[Session],
+    inventory_integration_data: InventoryIntegrationData,
+) -> None:
+    """A reservation must reference the matching material requirement."""
+
+    _receive(
+        integration_session_factory,
+        inventory_integration_data,
+        quantity="50.000",
+    )
+
+    with integration_session_factory() as db:
+        reservation = InventoryService(db).create_reservation(
+            organization_id=inventory_integration_data.organization_id,
+            payload=CreateInventoryReservationSchema(
+                item_id=inventory_integration_data.item_id,
+                location_id=inventory_integration_data.source_location_id,
+                work_order_id=inventory_integration_data.work_order_id,
+                work_order_material_requirement_id=(
+                    inventory_integration_data
+                    .work_order_material_requirement_id
+                ),
+                quantity=Decimal("20.000"),
+            ),
+            actor_user_id=inventory_integration_data.actor_user_id,
+        )
+
+        assert reservation.reservation.work_order_id == (
+            inventory_integration_data.work_order_id
+        )
+        assert (
+            reservation.reservation.work_order_material_requirement_id
+            == inventory_integration_data.work_order_material_requirement_id
+        )
+
+
+def test_reservation_rejects_missing_material_requirement(
+    integration_session_factory: sessionmaker[Session],
+    inventory_integration_data: InventoryIntegrationData,
+) -> None:
+    """A reservation must reference an existing material requirement."""
+
+    _receive(
+        integration_session_factory,
+        inventory_integration_data,
+        quantity="50.000",
+    )
+
+    with integration_session_factory() as db:
+        with pytest.raises(HTTPException) as exc_info:
+            InventoryService(db).create_reservation(
+                organization_id=inventory_integration_data.organization_id,
+                payload=CreateInventoryReservationSchema(
+                    item_id=inventory_integration_data.item_id,
+                    location_id=inventory_integration_data.source_location_id,
+                    work_order_id=inventory_integration_data.work_order_id,
+                    work_order_material_requirement_id=uuid.uuid4(),
+                    quantity=Decimal("20.000"),
+                ),
+                actor_user_id=inventory_integration_data.actor_user_id,
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == (
+            "Work-order material requirement not found."
+        )
+
+
+def test_reservation_rejects_requirement_from_different_work_order(
+    integration_session_factory: sessionmaker[Session],
+    inventory_integration_data: InventoryIntegrationData,
+) -> None:
+    """A requirement from another work order must not be accepted."""
+
+    _receive(
+        integration_session_factory,
+        inventory_integration_data,
+        quantity="50.000",
+    )
+
+    with integration_session_factory() as db:
+        with pytest.raises(HTTPException) as exc_info:
+            InventoryService(db).create_reservation(
+                organization_id=inventory_integration_data.organization_id,
+                payload=CreateInventoryReservationSchema(
+                    item_id=inventory_integration_data.item_id,
+                    location_id=inventory_integration_data.source_location_id,
+                    work_order_id=inventory_integration_data.work_order_id,
+                    work_order_material_requirement_id=(
+                        inventory_integration_data
+                        .second_work_order_material_requirement_id
+                    ),
+                    quantity=Decimal("20.000"),
+                ),
+                actor_user_id=inventory_integration_data.actor_user_id,
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == (
+            "Work-order material requirement not found."
+        )
+
+
+def test_reservation_rejects_requirement_for_different_inventory_item(
+    integration_session_factory: sessionmaker[Session],
+    inventory_integration_data: InventoryIntegrationData,
+) -> None:
+    """A requirement for another inventory item must not be accepted."""
+
+    _receive(
+        integration_session_factory,
+        inventory_integration_data,
+        quantity="50.000",
+    )
+
+    with integration_session_factory() as db:
+        requirement = WorkOrderMaterialRequirement(
+            id=uuid.uuid4(),
+            organization_id=inventory_integration_data.organization_id,
+            work_order_id=inventory_integration_data.work_order_id,
+            inventory_item_id=inventory_integration_data.other_item_id,
+            required_quantity=Decimal("100.000"),
+            notes="Cross-item validation requirement",
+            position=1,
+            created_by_user_id=inventory_integration_data.actor_user_id,
+            updated_by_user_id=inventory_integration_data.actor_user_id,
+            details={},
+            is_active=True,
+        )
+        db.add(requirement)
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            InventoryService(db).create_reservation(
+                organization_id=inventory_integration_data.organization_id,
+                payload=CreateInventoryReservationSchema(
+                    item_id=inventory_integration_data.item_id,
+                    location_id=inventory_integration_data.source_location_id,
+                    work_order_id=inventory_integration_data.work_order_id,
+                    work_order_material_requirement_id=requirement.id,
+                    quantity=Decimal("20.000"),
+                ),
+                actor_user_id=inventory_integration_data.actor_user_id,
+            )
+
+        assert exc_info.value.status_code == 422
+        assert exc_info.value.detail == (
+            "The material requirement does not belong to "
+            "the selected inventory item."
+        )
+
+
 def test_concurrent_reservations_cannot_exceed_available_stock(
     integration_session_factory: sessionmaker[Session],
     inventory_integration_data: InventoryIntegrationData,
@@ -236,7 +392,10 @@ def test_concurrent_reservations_cannot_exceed_available_stock(
 
     barrier = threading.Barrier(2)
 
-    def worker(work_order_id: Any) -> tuple[str, int | None]:
+    def worker(
+        work_order_id: Any,
+        requirement_id: Any,
+    ) -> tuple[str, int | None]:
         with integration_session_factory() as db:
             barrier.wait(timeout=10)
 
@@ -252,6 +411,7 @@ def test_concurrent_reservations_cannot_exceed_available_stock(
                             .source_location_id
                         ),
                         work_order_id=work_order_id,
+                        work_order_material_requirement_id=requirement_id,
                         quantity=Decimal("40.000"),
                     ),
                     actor_user_id=(
@@ -272,10 +432,12 @@ def test_concurrent_reservations_cannot_exceed_available_stock(
                 executor.submit(
                     worker,
                     inventory_integration_data.work_order_id,
+                    inventory_integration_data.work_order_material_requirement_id,
                 ),
                 executor.submit(
                     worker,
                     inventory_integration_data.second_work_order_id,
+                    inventory_integration_data.second_work_order_material_requirement_id,
                 ),
             )
         ]

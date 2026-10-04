@@ -20,6 +20,7 @@ from app.models.inventory import InventoryItem, InventoryLocation
 from app.models.organization import Organization
 from app.models.user import User
 from app.models.work_order import WorkOrder
+from app.models.work_order_material import WorkOrderMaterialRequirement
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +66,8 @@ class InventoryIntegrationData:
     other_location_id: uuid.UUID
     work_order_id: uuid.UUID
     second_work_order_id: uuid.UUID
+    work_order_material_requirement_id: uuid.UUID
+    second_work_order_material_requirement_id: uuid.UUID
 
 
 def _required_test_database_url() -> str:
@@ -243,6 +246,36 @@ def inventory_integration_data(
         location_type="warehouse",
     )
 
+    work_order_material_requirement = WorkOrderMaterialRequirement(
+        id=uuid.uuid4(),
+        organization_id=organization.id,
+        work_order_id=work_order.id,
+        inventory_item_id=item.id,
+        required_quantity="100.000",
+        notes="Primary inventory integration requirement",
+        position=0,
+        created_by_user_id=actor.id,
+        updated_by_user_id=actor.id,
+        details={},
+        is_active=True,
+    )
+
+    second_work_order_material_requirement = (
+        WorkOrderMaterialRequirement(
+            id=uuid.uuid4(),
+            organization_id=organization.id,
+            work_order_id=second_work_order.id,
+            inventory_item_id=item.id,
+            required_quantity="100.000",
+            notes="Secondary inventory integration requirement",
+            position=0,
+            created_by_user_id=actor.id,
+            updated_by_user_id=actor.id,
+            details={},
+            is_active=True,
+        )
+    )
+
     with integration_session_factory() as db:
         db.add_all(
             [
@@ -268,6 +301,14 @@ def inventory_integration_data(
                 other_location,
             ]
         )
+        db.flush()
+
+        db.add_all(
+            [
+                work_order_material_requirement,
+                second_work_order_material_requirement,
+            ]
+        )
         db.commit()
 
     data = InventoryIntegrationData(
@@ -282,6 +323,12 @@ def inventory_integration_data(
         other_location_id=other_location.id,
         work_order_id=work_order.id,
         second_work_order_id=second_work_order.id,
+        work_order_material_requirement_id=(
+            work_order_material_requirement.id
+        ),
+        second_work_order_material_requirement_id=(
+            second_work_order_material_requirement.id
+        ),
     )
 
     try:

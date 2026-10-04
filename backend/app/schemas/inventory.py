@@ -1294,6 +1294,7 @@ class CreateInventoryReservationSchema(BaseModel):
     item_id: uuid.UUID
     location_id: uuid.UUID
     work_order_id: uuid.UUID
+    work_order_material_requirement_id: uuid.UUID
 
     quantity: Decimal = Field(
         gt=0,
@@ -1531,6 +1532,7 @@ class InventoryReservationResponse(BaseModel):
     item_id: uuid.UUID
     location_id: uuid.UUID
     work_order_id: uuid.UUID
+    work_order_material_requirement_id: uuid.UUID | None
 
     quantity_reserved: Decimal
     quantity_consumed: Decimal
