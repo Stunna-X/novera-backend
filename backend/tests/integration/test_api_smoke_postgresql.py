@@ -241,7 +241,7 @@ def test_openapi_security_and_route_inventory(
         "/openapi.json"
     ).json()
 
-    assert len(schema["paths"]) == 220
+    assert len(schema["paths"]) == 221
 
     operations: list[
         tuple[str, str, dict[str, object]]

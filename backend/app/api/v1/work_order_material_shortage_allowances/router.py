@@ -43,13 +43,14 @@ router = APIRouter(
 
 
 @router.post(
-    "",
+    "/{requirement_id}",
     response_model=WorkOrderMaterialShortageAllowanceResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create material shortage allowance",
 )
 def create_material_shortage_allowance(
     work_order_id: uuid.UUID,
+    requirement_id: uuid.UUID,
     payload: WorkOrderMaterialShortageAllowanceCreate,
     context: OrganizationContext = Depends(
         require_all_permissions(
@@ -64,10 +65,10 @@ def create_material_shortage_allowance(
     return service.create_allowance(
         organization_id=context.organization.id,
         work_order_id=work_order_id,
+        requirement_id=requirement_id,
         payload=payload,
         actor_user_id=context.current_user.id,
     )
-
 
 @router.get(
     "",

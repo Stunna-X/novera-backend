@@ -660,3 +660,54 @@ def test_duplicate_allowance_is_rejected(
 
     assert exc_info.value.status_code == 409
     service.allowances.create.assert_not_called()
+def test_cancel_submitted_allowance_marks_it_inactive(
+    service: WorkOrderMaterialShortageAllowanceService,
+) -> None:
+    configure_common_repositories(service)
+
+    work_order = make_work_order()
+
+    requirement = make_requirement(
+        work_order_id=work_order.id,
+        organization_id=work_order.organization_id,
+    )
+
+    allowance = make_allowance(
+        requirement=requirement,
+        status="submitted",
+        requested_quantity=Decimal("60"),
+    )
+
+    service.work_orders.get_for_organization.return_value = work_order
+    service.allowances.get_for_work_order.return_value = allowance
+    service.materials.get_for_work_order.return_value = requirement
+
+    configure_live_shortage(
+        service,
+        requirement,
+        missing_quantity=Decimal("60"),
+    )
+
+    payload = WorkOrderMaterialShortageAllowanceCancel(
+        cancellation_reason="Cancel submitted allowance before field execution.",
+    )
+
+    response = service.cancel_allowance(
+        organization_id=work_order.organization_id,
+        work_order_id=work_order.id,
+        allowance_id=allowance.id,
+        payload=payload,
+        actor_user_id=uuid.uuid4(),
+    )
+
+    assert response.status == "cancelled"
+    assert response.is_active is False
+    assert response.cancellation_reason == (
+        "Cancel submitted allowance before field execution."
+    )
+    assert response.cancelled_at is not None
+    assert response.cancelled_by_user_id is not None
+
+    service.allowances.update.assert_called_once()
+    service.activities.create_activity.assert_called_once()
+
