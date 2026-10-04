@@ -124,6 +124,7 @@ class WorkOrderMaterialResponse(BaseModel):
     quantity_reserved: Decimal
     available_quantity: Decimal
     reserved_for_work_order: Decimal
+    consumed_quantity: Decimal
     covered_quantity: Decimal
     missing_quantity: Decimal
     coverage_percentage: Decimal

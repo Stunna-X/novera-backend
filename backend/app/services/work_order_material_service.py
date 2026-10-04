@@ -227,11 +227,19 @@ class WorkOrderMaterialService:
         work_order_id: uuid.UUID,
         requirements: list[WorkOrderMaterialRequirement],
     ) -> tuple[
-        dict[uuid.UUID, dict[str, Decimal | int]],
+        dict[
+            uuid.UUID,
+            dict[str, Decimal | int],
+        ],
+        dict[uuid.UUID, Decimal],
         dict[uuid.UUID, Decimal],
     ]:
         item_ids = {
             requirement.inventory_item_id
+            for requirement in requirements
+        }
+        requirement_ids = {
+            requirement.id
             for requirement in requirements
         }
 
@@ -245,8 +253,12 @@ class WorkOrderMaterialService:
                 work_order_id,
                 item_ids,
             ),
+            self.materials.get_work_order_material_consumed_totals(
+                organization_id,
+                work_order_id,
+                requirement_ids,
+            ),
         )
-
     def _build_response(
         self,
         requirement: WorkOrderMaterialRequirement,
@@ -256,6 +268,7 @@ class WorkOrderMaterialService:
             dict[str, Decimal | int],
         ],
         reservation_totals: dict[uuid.UUID, Decimal],
+        consumed_totals: dict[uuid.UUID, Decimal],
     ) -> WorkOrderMaterialResponse:
         stock = stock_totals.get(
             requirement.inventory_item_id,
@@ -280,15 +293,33 @@ class WorkOrderMaterialService:
                 Decimal("0"),
             )
         )
+        consumed_quantity = self._quantize_quantity(
+            min(
+                consumed_totals.get(
+                    requirement.id,
+                    Decimal("0"),
+                ),
+                requirement.required_quantity,
+            )
+        )
         required_quantity = self._quantize_quantity(
             requirement.required_quantity
         )
-        covered_quantity = self._quantize_quantity(
+        remaining_requirement = self._quantize_quantity(
+            max(
+                required_quantity - consumed_quantity,
+                Decimal("0"),
+            )
+        )
+        additional_coverage = self._quantize_quantity(
             min(
-                required_quantity,
+                remaining_requirement,
                 available_quantity
                 + reserved_for_work_order,
             )
+        )
+        covered_quantity = self._quantize_quantity(
+            consumed_quantity + additional_coverage
         )
         missing_quantity = self._quantize_quantity(
             max(
@@ -333,6 +364,7 @@ class WorkOrderMaterialService:
             reserved_for_work_order=(
                 reserved_for_work_order
             ),
+            consumed_quantity=consumed_quantity,
             covered_quantity=covered_quantity,
             missing_quantity=missing_quantity,
             coverage_percentage=coverage_percentage,
@@ -374,18 +406,21 @@ class WorkOrderMaterialService:
             requirement_id,
             include_inactive=include_inactive,
         )
-        stock_totals, reservation_totals = (
-            self._stock_context(
-                organization_id,
-                work_order_id,
-                [requirement],
-            )
+        (
+            stock_totals,
+            reservation_totals,
+            consumed_totals,
+        ) = self._stock_context(
+            organization_id,
+            work_order_id,
+            [requirement],
         )
 
         return self._build_response(
             requirement,
             stock_totals=stock_totals,
             reservation_totals=reservation_totals,
+            consumed_totals=consumed_totals,
         )
 
     def create_requirement(
@@ -524,18 +559,21 @@ class WorkOrderMaterialService:
             work_order_id,
             include_inactive=include_inactive,
         )
-        stock_totals, reservation_totals = (
-            self._stock_context(
-                organization_id,
-                work_order_id,
-                requirements,
-            )
+        (
+            stock_totals,
+            reservation_totals,
+            consumed_totals,
+        ) = self._stock_context(
+            organization_id,
+            work_order_id,
+            requirements,
         )
         items = [
             self._build_response(
                 requirement,
                 stock_totals=stock_totals,
                 reservation_totals=reservation_totals,
+                consumed_totals=consumed_totals,
             )
             for requirement in requirements
         ]

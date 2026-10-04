@@ -75,6 +75,7 @@ def test_readiness_is_available_when_stock_covers_requirement(
             }
         },
         reservation_totals={},
+        consumed_totals={},
     )
 
     assert response.readiness_status == "available"
@@ -100,6 +101,7 @@ def test_readiness_is_partial_when_only_some_stock_is_covered(
             }
         },
         reservation_totals={},
+        consumed_totals={},
     )
 
     assert response.readiness_status == "partial"
@@ -127,6 +129,7 @@ def test_job_reservation_counts_as_secured_stock(
         reservation_totals={
             requirement.inventory_item_id: Decimal("8"),
         },
+        consumed_totals={},
     )
 
     assert response.readiness_status == "available"
@@ -146,8 +149,65 @@ def test_readiness_is_missing_without_stock(
         requirement,
         stock_totals={},
         reservation_totals={},
+        consumed_totals={},
     )
 
     assert response.readiness_status == "missing"
     assert response.covered_quantity == Decimal("0.000")
     assert response.missing_quantity == Decimal("4.000")
+
+
+def test_consumed_material_counts_as_fulfilled_coverage(
+    service: WorkOrderMaterialService,
+) -> None:
+    requirement = make_requirement(
+        required_quantity=Decimal("10"),
+    )
+
+    response = service._build_response(
+        requirement,
+        stock_totals={},
+        reservation_totals={},
+        consumed_totals={
+            requirement.id: Decimal("5"),
+        },
+    )
+
+    assert response.consumed_quantity == Decimal("5.000")
+    assert response.covered_quantity == Decimal("5.000")
+    assert response.missing_quantity == Decimal("5.000")
+    assert response.coverage_percentage == Decimal("50.00")
+    assert response.readiness_status == "partial"
+
+
+def test_consumed_material_and_current_stock_complete_coverage(
+    service: WorkOrderMaterialService,
+) -> None:
+    requirement = make_requirement(
+        required_quantity=Decimal("10"),
+    )
+
+    response = service._build_response(
+        requirement,
+        stock_totals={
+            requirement.inventory_item_id: {
+                "quantity_on_hand": Decimal("5"),
+                "quantity_reserved": Decimal("2"),
+                "active_location_count": 1,
+            }
+        },
+        reservation_totals={
+            requirement.inventory_item_id: Decimal("2"),
+        },
+        consumed_totals={
+            requirement.id: Decimal("5"),
+        },
+    )
+
+    assert response.consumed_quantity == Decimal("5.000")
+    assert response.available_quantity == Decimal("3.000")
+    assert response.reserved_for_work_order == Decimal("2.000")
+    assert response.covered_quantity == Decimal("10.000")
+    assert response.missing_quantity == Decimal("0.000")
+    assert response.coverage_percentage == Decimal("100.00")
+    assert response.readiness_status == "available"

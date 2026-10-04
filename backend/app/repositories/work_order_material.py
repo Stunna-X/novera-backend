@@ -1,4 +1,4 @@
-"""
+﻿"""
 Persistence operations for work-order material requirements.
 """
 
@@ -270,7 +270,49 @@ class WorkOrderMaterialRepository:
             for row in rows
         }
 
-    def get_work_order_reservation_totals(
+    def get_work_order_material_consumed_totals(
+        self,
+        organization_id: uuid.UUID,
+        work_order_id: uuid.UUID,
+        requirement_ids: set[uuid.UUID],
+    ) -> dict[uuid.UUID, Decimal]:
+        if not requirement_ids:
+            return {}
+
+        rows = (
+            self.db.query(
+                InventoryReservation.work_order_material_requirement_id,
+                func.coalesce(
+                    func.sum(
+                        InventoryReservation.quantity_consumed
+                    ),
+                    0,
+                ).label("consumed_quantity"),
+            )
+            .filter(
+                InventoryReservation.organization_id
+                == organization_id,
+                InventoryReservation.work_order_id
+                == work_order_id,
+                InventoryReservation.work_order_material_requirement_id.in_(
+                    requirement_ids
+                ),
+                InventoryReservation.quantity_consumed > 0,
+            )
+            .group_by(
+                InventoryReservation.work_order_material_requirement_id
+            )
+            .all()
+        )
+
+        return {
+            row.work_order_material_requirement_id: Decimal(
+                row.consumed_quantity or 0
+            )
+            for row in rows
+            if row.work_order_material_requirement_id is not None
+        }
+`r`n    def get_work_order_reservation_totals(
         self,
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
@@ -319,3 +361,4 @@ class WorkOrderMaterialRepository:
             )
             for row in rows
         }
+
