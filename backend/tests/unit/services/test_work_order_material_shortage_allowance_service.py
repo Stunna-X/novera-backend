@@ -234,7 +234,13 @@ def test_create_allowance_creates_draft_without_changing_inventory(
     service.activities.create_activity.assert_called_once()
 
     service.materials.get_stock_totals.assert_called()
-    service.materials.get_work_order_reservation_totals.assert_called()
+    assert service.materials.get_work_order_reservation_totals.call_count == 2
+    for call in service.materials.get_work_order_reservation_totals.call_args_list:
+        assert call.args == (
+            work_order.organization_id,
+            work_order.id,
+            {requirement.id},
+        )
 
     # Allowances never mutate physical inventory.
     service.materials.update.assert_not_called()

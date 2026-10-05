@@ -127,7 +127,7 @@ def test_job_reservation_counts_as_secured_stock(
             }
         },
         reservation_totals={
-            requirement.inventory_item_id: Decimal("8"),
+            requirement.id: Decimal("8"),
         },
         consumed_totals={},
     )
@@ -197,7 +197,7 @@ def test_consumed_material_and_current_stock_complete_coverage(
             }
         },
         reservation_totals={
-            requirement.inventory_item_id: Decimal("2"),
+            requirement.id: Decimal("2"),
         },
         consumed_totals={
             requirement.id: Decimal("5"),

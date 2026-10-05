@@ -221,7 +221,7 @@ class WorkOrderMaterialShortageAllowanceService:
             self.materials.get_work_order_reservation_totals(
                 organization_id,
                 work_order_id,
-                {requirement.inventory_item_id},
+                {requirement.id},
             )
         )
 
@@ -1283,3 +1283,4 @@ class WorkOrderMaterialShortageAllowanceService:
             allowance.id,
             include_inactive=True,
         )
+

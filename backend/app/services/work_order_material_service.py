@@ -251,7 +251,7 @@ class WorkOrderMaterialService:
             self.materials.get_work_order_reservation_totals(
                 organization_id,
                 work_order_id,
-                item_ids,
+                requirement_ids,
             ),
             self.materials.get_work_order_material_consumed_totals(
                 organization_id,
@@ -289,7 +289,7 @@ class WorkOrderMaterialService:
         )
         reserved_for_work_order = self._quantize_quantity(
             reservation_totals.get(
-                requirement.inventory_item_id,
+                requirement.id,
                 Decimal("0"),
             )
         )

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Persistence operations for work-order material requirements.
 """
 
@@ -312,20 +312,22 @@ class WorkOrderMaterialRepository:
             for row in rows
             if row.work_order_material_requirement_id is not None
         }
-`r`n    def get_work_order_reservation_totals(
+
+
+    def get_work_order_reservation_totals(
         self,
         organization_id: uuid.UUID,
         work_order_id: uuid.UUID,
-        inventory_item_ids: set[uuid.UUID],
+        requirement_ids: set[uuid.UUID],
     ) -> dict[uuid.UUID, Decimal]:
-        if not inventory_item_ids:
+        if not requirement_ids:
             return {}
 
         now = datetime.now(UTC)
 
         rows = (
             self.db.query(
-                InventoryReservation.item_id,
+                InventoryReservation.work_order_material_requirement_id,
                 func.coalesce(
                     func.sum(
                         InventoryReservation.quantity_reserved
@@ -339,8 +341,8 @@ class WorkOrderMaterialRepository:
                 == organization_id,
                 InventoryReservation.work_order_id
                 == work_order_id,
-                InventoryReservation.item_id.in_(
-                    inventory_item_ids
+                InventoryReservation.work_order_material_requirement_id.in_(
+                    requirement_ids
                 ),
                 InventoryReservation.status.in_(
                     ACTIVE_RESERVATION_STATUSES
@@ -351,15 +353,16 @@ class WorkOrderMaterialRepository:
                     InventoryReservation.expires_at > now,
                 ),
             )
-            .group_by(InventoryReservation.item_id)
+            .group_by(
+                InventoryReservation.work_order_material_requirement_id
+            )
             .all()
         )
 
         return {
-            row.item_id: Decimal(
+            row.work_order_material_requirement_id: Decimal(
                 row.remaining_quantity or 0
             )
             for row in rows
+            if row.work_order_material_requirement_id is not None
         }
-
-
