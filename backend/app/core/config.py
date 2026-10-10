@@ -52,6 +52,12 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = "INFO"
     LOG_JSON: bool = False
+    # -------------------------------------------------------------------------
+    # Shared authentication rate limiting
+    # -------------------------------------------------------------------------
+
+    RATE_LIMIT_ENABLED: bool = False
+    RATE_LIMIT_REDIS_URL: str | None = None
 
     # -------------------------------------------------------------------------
     # Database
@@ -412,6 +418,28 @@ class Settings(BaseSettings):
                 "FRONTEND_URL must use HTTPS in staging and production."
             )
 
+        if self.APP_ENV in {"staging", "production"}:
+            if not self.RATE_LIMIT_ENABLED:
+                raise ValueError(
+                    "RATE_LIMIT_ENABLED must be enabled in staging "
+                    "or production."
+                )
+
+            if not self.RATE_LIMIT_REDIS_URL:
+                raise ValueError(
+                    "RATE_LIMIT_REDIS_URL is required in staging "
+                    "or production."
+                )
+
+            redis_url = urlparse(self.RATE_LIMIT_REDIS_URL)
+            if (
+                redis_url.scheme not in {"redis", "rediss"}
+                or not redis_url.hostname
+            ):
+                raise ValueError(
+                    "RATE_LIMIT_REDIS_URL must be a valid redis:// "
+                    "or rediss:// URL."
+                )
         if self.EMAIL_PROVIDER == "development":
             raise ValueError(
                 "EMAIL_PROVIDER cannot be development in staging "

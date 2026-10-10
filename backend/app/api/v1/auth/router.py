@@ -23,11 +23,16 @@ from app.schemas.auth import (
     UserResponse,
 )
 from app.services.auth_service import AuthService
+from app.security.rate_limit import rate_limit
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/register", response_model=AuthResponse)
+@router.post(
+    "/register",
+    response_model=AuthResponse,
+    dependencies=[Depends(rate_limit("register", 5, 3600))],
+)
 def register(
     payload: RegisterSchema,
     db: Session = Depends(get_db),
@@ -36,7 +41,11 @@ def register(
     return service.register(payload)
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post(
+    "/login",
+    response_model=AuthResponse,
+    dependencies=[Depends(rate_limit("login", 10, 60))],
+)
 def login(
     payload: LoginSchema,
     db: Session = Depends(get_db),
@@ -45,7 +54,11 @@ def login(
     return service.login(payload)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit("refresh", 30, 60))],
+)
 def refresh(
     payload: RefreshTokenSchema,
     db: Session = Depends(get_db),
@@ -66,6 +79,7 @@ def logout(
 @router.post(
     "/forgot-password",
     response_model=ForgotPasswordResponse,
+    dependencies=[Depends(rate_limit("forgot-password", 3, 3600))],
 )
 def forgot_password(
     payload: ForgotPasswordSchema,
@@ -78,6 +92,7 @@ def forgot_password(
 @router.post(
     "/reset-password",
     response_model=ResetPasswordResponse,
+    dependencies=[Depends(rate_limit("reset-password", 5, 900))],
 )
 def reset_password(
     payload: ResetPasswordSchema,

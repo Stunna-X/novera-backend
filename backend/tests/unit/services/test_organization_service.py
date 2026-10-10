@@ -98,42 +98,65 @@ def test_invalid_organization_name_slug_is_rejected(
 
 def test_existing_owner_role_is_reused(
     service: OrganizationService,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner_role = SimpleNamespace(
         id=uuid.uuid4(),
         name="Owner",
         is_system=True,
     )
-    service.roles.get_by_name.return_value = (
-        owner_role
+
+    ensure_owner_role = MagicMock(
+        return_value=owner_role
+    )
+
+    monkeypatch.setattr(
+        organization_service_module,
+        "ensure_canonical_role",
+        ensure_owner_role,
     )
 
     result = service._get_or_create_owner_role()
 
     assert result is owner_role
-    service.db.add.assert_not_called()
-    service.db.flush.assert_not_called()
+    ensure_owner_role.assert_called_once_with(
+        db=service.db,
+        role_name="Owner",
+    )
 
 
 def test_missing_owner_role_is_bootstrapped(
     service: OrganizationService,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    service.roles.get_by_name.return_value = None
-
-    owner_role = (
-        service._get_or_create_owner_role()
+    owner_role = SimpleNamespace(
+        id=uuid.uuid4(),
+        name="Owner",
+        is_system=True,
     )
 
-    assert owner_role.name == "Owner"
-    assert owner_role.is_system is True
-    service.db.add.assert_called_once_with(
-        owner_role
+    ensure_owner_role = MagicMock(
+        return_value=owner_role
     )
-    service.db.flush.assert_called_once_with()
+
+    monkeypatch.setattr(
+        organization_service_module,
+        "ensure_canonical_role",
+        ensure_owner_role,
+    )
+
+    result = service._get_or_create_owner_role()
+
+    assert result is owner_role
+    ensure_owner_role.assert_called_once_with(
+        db=service.db,
+        role_name="Owner",
+    )
 
 
 def test_create_organization_commits_owner_membership_atomically(
     service: OrganizationService,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     current_user = SimpleNamespace(
         id=uuid.uuid4()
@@ -143,8 +166,12 @@ def test_create_organization_commits_owner_membership_atomically(
         name="Owner",
     )
 
-    service.roles.get_by_name.return_value = (
-        owner_role
+    ensure_owner_role = MagicMock(return_value=owner_role)
+
+    monkeypatch.setattr(
+        organization_service_module,
+        "ensure_canonical_role",
+        ensure_owner_role,
     )
     service.organizations.slug_exists.return_value = (
         False

@@ -19,6 +19,8 @@ def build_settings(**overrides) -> Settings:
         "DATABASE_URL": DATABASE_URL,
         "SECRET_KEY": STRONG_SECRET,
         "EMAIL_PROVIDER": "manual",
+        "RATE_LIMIT_ENABLED": True,
+        "RATE_LIMIT_REDIS_URL": "redis://localhost:6379/0",
         "CORS_ORIGINS": ["https://app.novera.example"],
         "FRONTEND_URL": "https://app.novera.example",
         **overrides,
@@ -192,3 +194,57 @@ def test_retry_maximum_cannot_be_lower_than_base() -> None:
             EMAIL_OUTBOX_RETRY_BASE_SECONDS=120,
             EMAIL_OUTBOX_RETRY_MAX_SECONDS=60,
         )
+
+
+@pytest.mark.parametrize("app_environment", ["staging", "production"])
+def test_deployed_environments_require_rate_limiting(
+    app_environment: str,
+) -> None:
+    with pytest.raises(ValidationError, match="RATE_LIMIT_ENABLED"):
+        build_settings(
+            APP_ENV=app_environment,
+            RATE_LIMIT_ENABLED=False,
+            RATE_LIMIT_REDIS_URL="redis://localhost:6379/0",
+        )
+
+
+@pytest.mark.parametrize("app_environment", ["staging", "production"])
+def test_deployed_environments_require_redis_url(
+    app_environment: str,
+) -> None:
+    with pytest.raises(
+        ValidationError, match="RATE_LIMIT_REDIS_URL is required"
+    ):
+        build_settings(
+            APP_ENV=app_environment,
+            RATE_LIMIT_ENABLED=True,
+            RATE_LIMIT_REDIS_URL=None,
+        )
+
+
+@pytest.mark.parametrize(
+    "redis_url",
+    ["localhost:6379", "https://redis.example.com", ""],
+)
+def test_deployed_environments_reject_invalid_redis_url(
+    redis_url: str,
+) -> None:
+    with pytest.raises(ValidationError, match="RATE_LIMIT_REDIS_URL"):
+        build_settings(
+            APP_ENV="production",
+            RATE_LIMIT_ENABLED=True,
+            RATE_LIMIT_REDIS_URL=redis_url,
+        )
+
+
+def test_deployed_environment_accepts_rate_limit_configuration() -> None:
+    settings = build_settings(
+        APP_ENV="production",
+        RATE_LIMIT_ENABLED=True,
+        RATE_LIMIT_REDIS_URL="rediss://redis.example.com:6379/0",
+    )
+
+    assert settings.RATE_LIMIT_ENABLED is True
+    assert settings.RATE_LIMIT_REDIS_URL == (
+        "rediss://redis.example.com:6379/0"
+    )
