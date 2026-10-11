@@ -716,4 +716,3 @@ def test_cancel_submitted_allowance_marks_it_inactive(
 
     service.allowances.update.assert_called_once()
     service.activities.create_activity.assert_called_once()
-

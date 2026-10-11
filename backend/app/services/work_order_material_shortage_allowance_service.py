@@ -1283,4 +1283,3 @@ class WorkOrderMaterialShortageAllowanceService:
             allowance.id,
             include_inactive=True,
         )
-
