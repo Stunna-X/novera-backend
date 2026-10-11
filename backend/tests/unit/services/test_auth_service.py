@@ -41,7 +41,11 @@ def make_user(
 
 
 @pytest.fixture
-def service() -> AuthService:
+def service(monkeypatch: pytest.MonkeyPatch) -> AuthService:
+    monkeypatch.setattr(
+        "app.services.auth_service.AuthEmailService",
+        MagicMock(),
+    )
     instance = AuthService(MagicMock())
     instance.users = MagicMock()
     instance.refresh_tokens = MagicMock()
