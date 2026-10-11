@@ -1,14 +1,8 @@
-"""
-Authentication email service.
-
-Handles emails related to authentication flows, including
-password-reset instructions.
-"""
-
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from html import escape
 import uuid
+from urllib.parse import quote
 
 from app.core.config import Settings, settings
 from app.email.providers.base import (
@@ -46,7 +40,11 @@ class AuthEmailService:
         """
 
         frontend_url = self.settings.FRONTEND_URL.rstrip("/")
-        reset_url = f"{frontend_url}/reset-password?token={token}"
+        encoded_token = quote(token, safe="")
+        reset_url = (
+            f"{frontend_url}/reset-password?token={encoded_token}"
+        )
+        safe_first_name = escape(first_name)
 
         subject = "Reset your Novera password"
 
@@ -58,7 +56,7 @@ class AuthEmailService:
             "This link expires in 1 hour and can only be used once.\n\n"
             "If you did not request a password reset, you can safely "
             "ignore this email.\n\n"
-            "— Novera"
+            "\u2014 Novera"
         )
 
         body_html = f"""
@@ -71,7 +69,7 @@ class AuthEmailService:
 <body style="font-family: Arial, sans-serif; line-height: 1.6;">
     <h2>Reset your Novera password</h2>
 
-    <p>Hi {first_name},</p>
+    <p>Hi {safe_first_name},</p>
 
     <p>
         We received a request to reset your Novera password.
@@ -83,7 +81,7 @@ class AuthEmailService:
 
     <p>
         <a
-            href="{reset_url}"
+            href="{escape(reset_url, quote=True)}"
             style="
                 display: inline-block;
                 padding: 12px 20px;
@@ -102,7 +100,7 @@ class AuthEmailService:
     </p>
 
     <p>
-        <a href="{reset_url}">{reset_url}</a>
+        <a href="{escape(reset_url, quote=True)}">{escape(reset_url)}</a>
     </p>
 
     <p>
@@ -115,7 +113,7 @@ class AuthEmailService:
         ignore this email.
     </p>
 
-    <p>— Novera</p>
+    <p>\u2014 Novera</p>
 </body>
 </html>
 """.strip()
