@@ -493,6 +493,9 @@ def test_create_reservation_rejects_quantity_above_available(
     service._get_item_or_404 = MagicMock(return_value=item)
     service._get_location_or_404 = MagicMock(return_value=object())
     service._get_work_order_or_404 = MagicMock(return_value=object())
+    service.materials.get_for_work_order = MagicMock(
+        return_value=MagicMock(inventory_item_id=item.id)
+    )
     service._get_balance_for_update = MagicMock(
         return_value=balance
     )
@@ -504,6 +507,7 @@ def test_create_reservation_rejects_quantity_above_available(
                 item_id=item.id,
                 location_id=location_id,
                 work_order_id=uuid.uuid4(),
+                work_order_material_requirement_id=uuid.uuid4(),
                 quantity=Decimal("3"),
             ),
             actor_user_id=uuid.uuid4(),
@@ -536,6 +540,9 @@ def test_create_reservation_increases_reserved_quantity(
     service._get_item_or_404 = MagicMock(return_value=item)
     service._get_location_or_404 = MagicMock(return_value=object())
     service._get_work_order_or_404 = MagicMock(return_value=object())
+    service.materials.get_for_work_order = MagicMock(
+        return_value=MagicMock(inventory_item_id=item.id)
+    )
     service._get_balance_for_update = MagicMock(
         return_value=balance
     )
@@ -557,6 +564,7 @@ def test_create_reservation_increases_reserved_quantity(
             item_id=item.id,
             location_id=location_id,
             work_order_id=work_order_id,
+            work_order_material_requirement_id=uuid.uuid4(),
             quantity=Decimal("3"),
         ),
         actor_user_id=actor_user_id,

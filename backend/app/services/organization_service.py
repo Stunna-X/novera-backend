@@ -20,6 +20,10 @@ from app.models.role import Role
 from app.models.user import User
 from app.repositories.organization import OrganizationRepository
 from app.repositories.role import RoleRepository
+from app.security.access_control import (
+    CANONICAL_OWNER_ROLE_NAME,
+    ensure_canonical_role,
+)
 from app.schemas.organization import (
     CreateOrganizationSchema,
     UpdateOrganizationSchema,
@@ -27,7 +31,7 @@ from app.schemas.organization import (
 from app.utils.slug import slugify
 
 
-OWNER_ROLE_NAME = "Owner"
+OWNER_ROLE_NAME = CANONICAL_OWNER_ROLE_NAME
 
 
 class OrganizationService:
@@ -101,38 +105,17 @@ class OrganizationService:
         self,
     ) -> Role:
         """
-        Retrieve the system Owner role.
+        Ensure the canonical Owner role and all of its permissions exist.
 
-        If the Owner role does not exist, create it.
-
-        This method is intentionally idempotent so organization
-        creation can safely bootstrap the Owner role when the
-        access-control seed has not yet been executed.
+        This is intentionally idempotent so organization creation can
+        safely bootstrap or repair the Owner role when the access-control
+        seed has not yet been executed.
         """
 
-        owner_role = self.roles.get_by_name(
-            OWNER_ROLE_NAME
+        return ensure_canonical_role(
+            db=self.db,
+            role_name=OWNER_ROLE_NAME,
         )
-
-        if owner_role is not None:
-            return owner_role
-
-        owner_role = Role(
-            name=OWNER_ROLE_NAME,
-            description=(
-                "Full administrative control over "
-                "an organization."
-            ),
-            is_system=True,
-        )
-
-        self.db.add(
-            owner_role
-        )
-
-        self.db.flush()
-
-        return owner_role
 
     def create_organization(
         self,

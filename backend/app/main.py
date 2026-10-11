@@ -1,3 +1,4 @@
+
 """
 Application entry point for Novera.
 
@@ -12,9 +13,14 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import logging
+from collections.abc import Generator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from app.api.v1.api import api_router
 from app.core.config import Settings, settings
@@ -22,6 +28,11 @@ from app.core.logging import configure_logging
 from app.core.request_context import (
     reset_request_context,
     set_request_context,
+)
+from app.database.session import (
+    create_database_engine,
+    create_session_factory,
+    get_db,
 )
 
 
@@ -55,6 +66,49 @@ def create_application(
         else None
     )
 
+    # Create an engine specifically for this application instance.
+    #
+    # This is important for testing and for any environment where
+    # create_application() receives settings different from the
+    # process-wide default settings.
+    application_engine = create_database_engine(
+        active_settings
+    )
+
+    application_session_factory = create_session_factory(
+        application_engine
+    )
+    rate_limit_redis = None
+
+    if (
+        active_settings.RATE_LIMIT_ENABLED
+        and active_settings.RATE_LIMIT_REDIS_URL
+    ):
+        rate_limit_redis = Redis.from_url(
+            active_settings.RATE_LIMIT_REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+            health_check_interval=30,
+        )
+
+    def application_get_db() -> Generator[Session, None, None]:
+        """
+        Provide a database session bound to this application's engine.
+        """
+
+        db = application_session_factory()
+
+        try:
+            yield db
+
+        except Exception:
+            db.rollback()
+            raise
+
+        finally:
+            db.close()
+
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         logger.info(
@@ -64,12 +118,43 @@ def create_application(
             active_settings.APP_ENV,
         )
 
-        yield
+        try:
+            if (
+                active_settings.is_deployed_environment
+                and active_settings.RATE_LIMIT_ENABLED
+            ):
+                if rate_limit_redis is None:
+                    raise RuntimeError(
+                        "Redis rate limiting is required, but the "
+                        "Redis client was not initialized."
+                    )
 
-        logger.info(
-            "Stopping %s.",
-            active_settings.APP_NAME,
-        )
+                try:
+                    await rate_limit_redis.ping()
+                except (RedisError, OSError, TimeoutError) as exc:
+                    logger.error(
+                        "Redis connectivity check failed; refusing to "
+                        "start because deployed rate limiting is required."
+                    )
+                    raise RuntimeError(
+                        "Redis is unavailable; application startup "
+                        "aborted because rate limiting is required."
+                    ) from exc
+
+                logger.info("Redis connectivity check passed.")
+
+            yield
+        finally:
+            logger.info(
+                "Stopping %s.",
+                active_settings.APP_NAME,
+            )
+
+            try:
+                if rate_limit_redis is not None:
+                    await rate_limit_redis.aclose()
+            finally:
+                application_engine.dispose()
 
     application = FastAPI(
         title=active_settings.APP_NAME,
@@ -83,6 +168,17 @@ def create_application(
     )
 
     application.state.settings = active_settings
+    application.state.database_engine = application_engine
+    application.state.session_factory = (
+        application_session_factory
+    )
+    application.state.rate_limit_redis = rate_limit_redis
+
+    # Make every route using the shared get_db dependency use the
+    # engine belonging to this specific FastAPI application instance.
+    application.dependency_overrides[get_db] = (
+        application_get_db
+    )
 
     @application.middleware("http")
     async def attach_request_audit_context(
@@ -91,18 +187,13 @@ def create_application(
     ):
         """Attach request metadata to the current audit context."""
 
-        forwarded_for = request.headers.get(
-            "x-forwarded-for"
+        # Do not trust caller-supplied forwarding headers until
+        # the trusted proxy chain has been verified.
+        ip_address = (
+            request.client.host
+            if request.client is not None
+            else None
         )
-
-        if forwarded_for:
-            ip_address = forwarded_for.split(",")[0].strip()
-        else:
-            ip_address = (
-                request.client.host
-                if request.client is not None
-                else None
-            )
 
         token = set_request_context(
             method=request.method,
@@ -123,6 +214,34 @@ def create_application(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @application.middleware("http")
+    async def add_security_headers(
+        request: Request,
+        call_next,
+    ):
+        """Add baseline security headers to HTTP responses."""
+
+        response = await call_next(request)
+
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = (
+            "strict-origin-when-cross-origin"
+        )
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=()"
+        )
+
+        # The deployed Novera environment is expected to be served
+        # over HTTPS, including when TLS terminates at the proxy.
+        if active_settings.is_deployed_environment:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000"
+            )
+
+        return response
+
 
     @application.get(
         "/",

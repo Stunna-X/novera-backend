@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+from fastapi.testclient import TestClient
+from redis.exceptions import RedisError
 
 from app.core.config import Settings
 from app.main import create_application
@@ -19,7 +24,10 @@ def make_settings(**overrides) -> Settings:
         DATABASE_URL=DATABASE_URL,
         SECRET_KEY="a" * 48,
         EMAIL_PROVIDER="manual",
+        RATE_LIMIT_ENABLED=True,
+        RATE_LIMIT_REDIS_URL="redis://localhost:6379/0",
         CORS_ORIGINS=["https://app.novera.example"],
+        FRONTEND_URL="https://app.novera.example",
         **overrides,
     )
 
@@ -74,3 +82,172 @@ def test_root_reports_application_environment() -> None:
         "environment": "testing",
         "status": "running",
     }
+
+
+def test_root_response_includes_security_headers() -> None:
+    application = create_application(
+        make_settings(APP_ENV="testing")
+    )
+
+    with TestClient(application) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert (
+        response.headers["referrer-policy"]
+        == "strict-origin-when-cross-origin"
+    )
+    assert (
+        response.headers["permissions-policy"]
+        == "camera=(), microphone=(), geolocation=()"
+    )
+
+
+def test_forwarded_ip_header_does_not_override_direct_peer(
+    monkeypatch,
+) -> None:
+    from app.core.request_context import set_request_context as original_set
+
+    captured = {}
+
+    def capture_request_context(**kwargs):
+        captured.update(kwargs)
+        return original_set(**kwargs)
+
+    monkeypatch.setattr(
+        "app.main.set_request_context",
+        capture_request_context,
+    )
+
+    application = create_application(
+        make_settings(APP_ENV="testing")
+    )
+
+    with TestClient(application) as client:
+        response = client.get(
+            "/",
+            headers={"X-Forwarded-For": "203.0.113.99"},
+        )
+
+    assert response.status_code == 200
+    assert captured["ip_address"] == "testclient"
+    assert captured["ip_address"] != "203.0.113.99"
+
+
+def test_production_response_includes_hsts(monkeypatch) -> None:
+    redis_client = Mock()
+    redis_client.ping = AsyncMock(return_value=True)
+    redis_client.aclose = AsyncMock()
+
+    monkeypatch.setattr(
+        "app.main.Redis.from_url",
+        lambda *args, **kwargs: redis_client,
+    )
+
+    application = create_application(
+        make_settings(APP_ENV="production")
+    )
+
+    with TestClient(application) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert (
+        response.headers["strict-transport-security"]
+        == "max-age=31536000"
+    )
+
+
+def test_security_headers_are_present_on_not_found_response() -> None:
+    application = create_application(
+        make_settings(APP_ENV="testing")
+    )
+
+    with TestClient(application) as client:
+        response = client.get("/this-route-does-not-exist")
+
+    assert response.status_code == 404
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+
+
+def test_security_headers_do_not_break_cors_preflight() -> None:
+    origin = "https://app.novera.example"
+    application = create_application(
+        make_settings(APP_ENV="testing")
+    )
+
+    with TestClient(application) as client:
+        response = client.options(
+            "/",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_production_startup_pings_redis_and_closes_on_shutdown(
+    monkeypatch,
+) -> None:
+    redis_client = Mock()
+    redis_client.ping = AsyncMock(return_value=True)
+    redis_client.aclose = AsyncMock()
+
+    monkeypatch.setattr(
+        "app.main.Redis.from_url",
+        lambda *args, **kwargs: redis_client,
+    )
+
+    application = create_application(
+        make_settings(APP_ENV="production")
+    )
+
+    with TestClient(application) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    redis_client.ping.assert_awaited_once()
+    redis_client.aclose.assert_awaited_once()
+
+
+def test_production_startup_fails_if_redis_ping_fails(
+    monkeypatch,
+) -> None:
+    redis_client = Mock()
+    redis_client.ping = AsyncMock(
+        side_effect=RedisError("connection refused")
+    )
+    redis_client.aclose = AsyncMock()
+
+    fake_engine = Mock()
+
+    monkeypatch.setattr(
+        "app.main.Redis.from_url",
+        lambda *args, **kwargs: redis_client,
+    )
+    monkeypatch.setattr(
+        "app.main.create_database_engine",
+        lambda settings: fake_engine,
+    )
+
+    application = create_application(
+        make_settings(APP_ENV="production")
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Redis is unavailable",
+    ):
+        with TestClient(application):
+            pass
+
+    redis_client.ping.assert_awaited_once()
+    redis_client.aclose.assert_awaited_once()
+    fake_engine.dispose.assert_called_once()

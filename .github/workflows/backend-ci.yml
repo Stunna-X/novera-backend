@@ -59,7 +59,7 @@ jobs:
       TEST_DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/novera_test_ci
 
       SECRET_KEY: ci-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-      EMAIL_PROVIDER: manual
+      EMAIL_PROVIDER: development
 
       CORS_ORIGINS: '["https://frontend.api-smoke.test","https://frontend.ci.novera.app"]'
 

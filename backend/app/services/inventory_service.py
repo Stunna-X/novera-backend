@@ -34,6 +34,9 @@ from app.repositories.inventory import (
     LowStockRecord,
 )
 from app.repositories.work_order import WorkOrderRepository
+from app.repositories.work_order_material import (
+    WorkOrderMaterialRepository,
+)
 from app.schemas.audit_log import AuditLogCreate
 from app.schemas.inventory import (
     AdjustInventoryStockSchema,
@@ -80,6 +83,7 @@ class InventoryService:
         self.db = db
         self.inventory = InventoryRepository(db)
         self.work_orders = WorkOrderRepository(db)
+        self.materials = WorkOrderMaterialRepository(db)
         self.audit_logs = AuditLogService(db)
 
     def _rollback_and_raise_conflict(
@@ -2656,6 +2660,27 @@ class InventoryService:
             require_mutable=True,
         )
 
+        requirement = self.materials.get_for_work_order(
+            organization_id=organization_id,
+            work_order_id=payload.work_order_id,
+            requirement_id=payload.work_order_material_requirement_id,
+        )
+
+        if requirement is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work-order material requirement not found.",
+            )
+
+        if requirement.inventory_item_id != item.id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    "The material requirement does not belong to "
+                    "the selected inventory item."
+                ),
+            )
+
         now = self._utc_now()
 
         if (
@@ -2697,6 +2722,7 @@ class InventoryService:
                     item_id=item.id,
                     location_id=payload.location_id,
                     work_order_id=payload.work_order_id,
+                    work_order_material_requirement_id=requirement.id,
                     quantity_reserved=quantity,
                     quantity_consumed=Decimal("0"),
                     status="active",

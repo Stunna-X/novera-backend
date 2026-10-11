@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import re
 import uuid
 from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
@@ -25,6 +27,8 @@ PUBLIC_OPERATIONS = {
     ("POST", "/api/v1/auth/login"),
     ("POST", "/api/v1/auth/refresh"),
     ("POST", "/api/v1/auth/logout"),
+    ("POST", "/api/v1/auth/forgot-password"),
+    ("POST", "/api/v1/auth/reset-password"),
 }
 
 HTTP_METHODS = {
@@ -36,13 +40,52 @@ HTTP_METHODS = {
 }
 
 
+def _required_test_database_url() -> str:
+    """Return and validate the dedicated PostgreSQL test database URL."""
+
+    database_url = os.getenv("TEST_DATABASE_URL")
+
+    if not database_url:
+        pytest.skip(
+            "TEST_DATABASE_URL is required for PostgreSQL "
+            "integration tests."
+        )
+
+    url = make_url(database_url)
+    database_name = (url.database or "").lower()
+
+    if not url.get_backend_name().startswith("postgresql"):
+        pytest.fail(
+            "TEST_DATABASE_URL must use PostgreSQL.",
+            pytrace=False,
+        )
+
+    if "test" not in database_name:
+        pytest.fail(
+            "Refusing to run integration tests against a database "
+            "whose name does not contain 'test'.",
+            pytrace=False,
+        )
+
+    return database_url
+
+
 @pytest.fixture
 def api_client() -> Iterator[TestClient]:
     """Run requests through the real FastAPI middleware and routers."""
 
+    test_database_url = os.getenv("TEST_DATABASE_URL")
+
+    if not test_database_url:
+        pytest.fail(
+            "TEST_DATABASE_URL is required for PostgreSQL "
+            "integration tests.",
+            pytrace=False,
+        )
+
     test_settings = Settings(
         _env_file=None,
-        DATABASE_URL="postgresql+psycopg2://postgres:postgres@localhost:5432/novera",
+        DATABASE_URL=test_database_url,
         SECRET_KEY="a" * 48,
         EMAIL_PROVIDER="manual",
         APP_ENV="testing",
@@ -198,7 +241,7 @@ def test_openapi_security_and_route_inventory(
         "/openapi.json"
     ).json()
 
-    assert len(schema["paths"]) == 212
+    assert len(schema["paths"]) == 221
 
     operations: list[
         tuple[str, str, dict[str, object]]
@@ -243,7 +286,7 @@ def test_openapi_security_and_route_inventory(
                 "an OpenAPI security requirement."
             )
 
-    assert len(operations) == 288
+    assert len(operations) == 298
     assert len(operation_ids) == len(
         set(operation_ids)
     )
@@ -252,7 +295,7 @@ def test_openapi_security_and_route_inventory(
 def test_unauthenticated_route_sweep_has_no_server_errors(
     api_client: TestClient,
 ) -> None:
-    """Exercise all 288 operations without credentials."""
+    """Exercise all 298 operations without credentials."""
 
     schema = api_client.get(
         "/openapi.json"
@@ -308,7 +351,7 @@ def test_unauthenticated_route_sweep_has_no_server_errors(
                     "succeeded without authentication."
                 )
 
-    assert examined == 288
+    assert examined == 298
 
 
 def test_authentication_rbac_and_tenant_workflow(
@@ -675,9 +718,7 @@ def test_authentication_rbac_and_tenant_workflow(
     finally:
         _cleanup_smoke_records(
             integration_session_factory,
-            organization_ids=(
-                created_organization_ids
-            ),
+            organization_ids=created_organization_ids,
             emails=[
                 owner_email,
                 viewer_email,
