@@ -21,6 +21,7 @@ def build_settings(**overrides) -> Settings:
         "EMAIL_PROVIDER": "manual",
         "RATE_LIMIT_ENABLED": True,
         "RATE_LIMIT_REDIS_URL": "redis://localhost:6379/0",
+        "CLOUDFLARE_ORIGIN_VERIFY_SECRET": "test-origin-verification-secret-32chars-minimum",
         "CORS_ORIGINS": ["https://app.novera.example"],
         "FRONTEND_URL": "https://app.novera.example",
         **overrides,
@@ -248,3 +249,59 @@ def test_deployed_environment_accepts_rate_limit_configuration() -> None:
     assert settings.RATE_LIMIT_REDIS_URL == (
         "rediss://redis.example.com:6379/0"
     )
+
+@pytest.mark.parametrize("app_environment", ["staging", "production"])
+def test_deployed_environments_require_origin_verification_secret(
+    app_environment: str,
+) -> None:
+    with pytest.raises(
+        ValidationError, match="CLOUDFLARE_ORIGIN_VERIFY_SECRET"
+    ):
+        build_settings(
+            APP_ENV=app_environment,
+            CLOUDFLARE_ORIGIN_VERIFY_SECRET=None,
+        )
+
+
+@pytest.mark.parametrize("app_environment", ["staging", "production"])
+def test_deployed_environments_reject_short_origin_verification_secret(
+    app_environment: str,
+) -> None:
+    with pytest.raises(
+        ValidationError, match="CLOUDFLARE_ORIGIN_VERIFY_SECRET"
+    ):
+        build_settings(
+            APP_ENV=app_environment,
+            CLOUDFLARE_ORIGIN_VERIFY_SECRET="too-short",
+        )
+
+
+@pytest.mark.parametrize("app_environment", ["staging", "production"])
+@pytest.mark.parametrize(
+    "secret",
+    [
+        " test-origin-verification-secret-32chars-minimum",
+        "test-origin-verification-secret-32chars-minimum ",
+        "test-origin-verification secret-32chars-minimum",
+    ],
+)
+def test_deployed_environments_reject_origin_secret_whitespace(
+    app_environment: str,
+    secret: str,
+) -> None:
+    with pytest.raises(
+        ValidationError,
+        match="CLOUDFLARE_ORIGIN_VERIFY_SECRET",
+    ):
+        build_settings(
+            APP_ENV=app_environment,
+            CLOUDFLARE_ORIGIN_VERIFY_SECRET=secret,
+        )
+
+def test_deployed_environment_accepts_origin_verification_secret() -> None:
+    secret = "test-origin-verification-secret-32chars-minimum"
+    configured = build_settings(
+        APP_ENV="production",
+        CLOUDFLARE_ORIGIN_VERIFY_SECRET=secret,
+    )
+    assert configured.CLOUDFLARE_ORIGIN_VERIFY_SECRET == secret

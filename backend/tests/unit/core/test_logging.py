@@ -23,6 +23,7 @@ def make_settings(**overrides) -> Settings:
         DATABASE_URL=DATABASE_URL,
         SECRET_KEY="a" * 48,
         EMAIL_PROVIDER="manual",
+        CLOUDFLARE_ORIGIN_VERIFY_SECRET="test-origin-verification-secret-32chars-minimum",
         CORS_ORIGINS=["https://app.novera.example"],
         FRONTEND_URL="https://app.novera.example",
         RATE_LIMIT_ENABLED=True,

@@ -6,6 +6,7 @@ import hashlib
 import logging
 
 from fastapi import HTTPException, Request, status
+from app.core.client_ip import resolve_client_ip
 from redis.exceptions import RedisError
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,15 @@ def rate_limit(scope: str, max_requests: int, window_seconds: int):
                 headers={"Retry-After": "30"},
             )
 
-        client_ip = request.client.host if request.client is not None else None
+        client_ip = resolve_client_ip(
+            request,
+            trust_cloudflare_header=settings.is_deployed_environment,
+            origin_secret=getattr(
+                settings,
+                "CLOUDFLARE_ORIGIN_VERIFY_SECRET",
+                None,
+            ),
+        )
         if not client_ip:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

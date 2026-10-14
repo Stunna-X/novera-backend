@@ -8,6 +8,7 @@ password-reset flows.
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -39,6 +40,9 @@ from app.schemas.auth import (
     ResetPasswordSchema,
 )
 from app.services.auth_email_service import AuthEmailService
+
+
+logger = logging.getLogger(__name__)
 
 
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 60
@@ -349,7 +353,14 @@ class AuthService:
                 first_name=user.first_name,
                 token=raw_token,
             )
-        except EmailProviderError:
+        except EmailProviderError as exc:
+            logger.warning(
+                "Password-reset email delivery failed; "
+                "reset token invalidated. provider_error_code=%s "
+                "retryable=%s",
+                exc.code or "unknown",
+                exc.retryable,
+            )
             self.db.delete(reset_token)
             self.db.commit()
 
@@ -362,12 +373,10 @@ class AuthService:
         payload: ResetPasswordSchema,
     ) -> dict[str, str]:
         """
-        Reset a user's password using a valid single-use token.
+        Reset a user's password using an atomically claimed single-use token.
         """
 
-        token_hash = self._hash_password_reset_token(
-            payload.token,
-        )
+        token_hash = self._hash_password_reset_token(payload.token)
 
         reset_token = self.password_reset_tokens.get_by_token_hash(
             token_hash,
@@ -389,48 +398,62 @@ class AuthService:
         if reset_token.expires_at <= now:
             raise invalid_token_error
 
-        user = self.users.get(
-            reset_token.user_id,
-        )
+        user = self.users.get(reset_token.user_id)
 
         if user is None:
             raise invalid_token_error
 
         self._validate_user_status(user)
 
-        user.password_hash = hash_password(
-            payload.password,
-        )
-
-        reset_token.used_at = now
-
-        self.db.add(user)
-        self.db.add(reset_token)
-
-        # Invalidate all other outstanding password-reset tokens.
-        self.db.query(PasswordResetToken).filter(
-            PasswordResetToken.user_id == user.id,
-            PasswordResetToken.used_at.is_(None),
-            PasswordResetToken.id != reset_token.id,
-        ).update(
-            {
-                PasswordResetToken.used_at: now,
-            },
-            synchronize_session=False,
-        )
-
-        # Force every existing authenticated session to sign in again.
-        self.db.query(RefreshToken).filter(
-            RefreshToken.user_id == user.id,
-            RefreshToken.revoked.is_(False),
-        ).update(
-            {
-                RefreshToken.revoked: True,
-            },
-            synchronize_session=False,
-        )
-
         try:
+            # Claim the token atomically. Concurrent requests using the
+            # same token cannot both update this row successfully.
+            claimed_rows = (
+                self.db.query(PasswordResetToken)
+                .filter(
+                    PasswordResetToken.token_hash == token_hash,
+                    PasswordResetToken.used_at.is_(None),
+                    PasswordResetToken.expires_at > now,
+                )
+                .update(
+                    {
+                        PasswordResetToken.used_at: now,
+                    },
+                    synchronize_session=False,
+                )
+            )
+
+            if claimed_rows != 1:
+                raise invalid_token_error
+
+            user.password_hash = hash_password(
+                payload.password,
+            )
+            self.db.add(user)
+
+            # Invalidate all other outstanding password-reset tokens.
+            self.db.query(PasswordResetToken).filter(
+                PasswordResetToken.user_id == user.id,
+                PasswordResetToken.used_at.is_(None),
+                PasswordResetToken.id != reset_token.id,
+            ).update(
+                {
+                    PasswordResetToken.used_at: now,
+                },
+                synchronize_session=False,
+            )
+
+            # Force every existing authenticated session to sign in again.
+            self.db.query(RefreshToken).filter(
+                RefreshToken.user_id == user.id,
+                RefreshToken.revoked.is_(False),
+            ).update(
+                {
+                    RefreshToken.revoked: True,
+                },
+                synchronize_session=False,
+            )
+
             self.db.commit()
         except Exception:
             self.db.rollback()

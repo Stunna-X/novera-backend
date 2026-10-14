@@ -17,6 +17,7 @@ from collections.abc import Generator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.engine import Engine
@@ -24,6 +25,10 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.api import api_router
 from app.core.config import Settings, settings
+from app.core.client_ip import (
+    is_cloudflare_origin_verified,
+    resolve_client_ip,
+)
 from app.core.logging import configure_logging
 from app.core.request_context import (
     reset_request_context,
@@ -187,12 +192,34 @@ def create_application(
     ):
         """Attach request metadata to the current audit context."""
 
-        # Do not trust caller-supplied forwarding headers until
-        # the trusted proxy chain has been verified.
-        ip_address = (
-            request.client.host
-            if request.client is not None
-            else None
+        # Only accept requests to protected routes when the configured
+        # Cloudflare origin-verification header is correct.
+        if active_settings.is_deployed_environment:
+            health_path = (
+                f"{active_settings.API_V1_PREFIX.rstrip('/')}/health"
+            )
+            public_paths = {"/", health_path}
+
+            if (
+                request.url.path not in public_paths
+                and not is_cloudflare_origin_verified(
+                    request,
+                    active_settings.CLOUDFLARE_ORIGIN_VERIFY_SECRET,
+                )
+            ):
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Forbidden"},
+                )
+
+        # Cloudflare's client-IP header is trusted only when the origin
+        # verification secret matches. Local environments use the peer IP.
+        ip_address = resolve_client_ip(
+            request,
+            trust_cloudflare_header=active_settings.is_deployed_environment,
+            origin_secret=(
+                active_settings.CLOUDFLARE_ORIGIN_VERIFY_SECRET
+            ),
         )
 
         token = set_request_context(

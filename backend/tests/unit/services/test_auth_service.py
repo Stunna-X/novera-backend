@@ -756,6 +756,51 @@ def test_reset_password_rejects_unavailable_account(
     service.db.commit.assert_not_called()
 
 
+def configure_reset_password_updates(
+    service: AuthService,
+    *,
+    claim_rows: int = 1,
+) -> None:
+    """Configure mocked SQL UPDATE results for reset-password tests."""
+
+    service.db.query.return_value.filter.return_value.update.side_effect = [
+        claim_rows,
+        0,
+        0,
+    ]
+
+
+def test_reset_password_rejects_token_when_atomic_claim_is_lost(
+    service: AuthService,
+) -> None:
+    user = make_user()
+    reset_token = make_reset_token(user_id=user.id)
+
+    service.password_reset_tokens.get_by_token_hash.return_value = (
+        reset_token
+    )
+    service.users.get.return_value = user
+    service.db.query.return_value.filter.return_value.update.side_effect = [
+        0,
+    ]
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.reset_password(
+            ResetPasswordSchema(
+                token=VALID_RESET_TOKEN,
+                password="newpassword123",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == (
+        "Invalid or expired password reset token."
+    )
+    assert user.password_hash == "hashed-password"
+    service.db.commit.assert_not_called()
+    service.db.rollback.assert_called_once_with()
+
+
 def test_reset_password_updates_password_and_revokes_sessions(
     service: AuthService,
     monkeypatch: pytest.MonkeyPatch,
@@ -767,6 +812,8 @@ def test_reset_password_updates_password_and_revokes_sessions(
         reset_token
     )
     service.users.get.return_value = user
+
+    configure_reset_password_updates(service)
 
     monkeypatch.setattr(
         auth_service_module,
@@ -783,10 +830,19 @@ def test_reset_password_updates_password_and_revokes_sessions(
 
     assert result == {"message": RESET_SUCCESS_MESSAGE}
     assert user.password_hash == "hashed::newpassword123"
-    assert reset_token.used_at is not None
+    # The token is consumed by the atomic SQL UPDATE. Because the update
+    # uses synchronize_session=False, the loaded ORM instance stays stale.
+    updates = (
+        service.db.query.return_value.filter.return_value.update.call_args_list
+    )
+    assert len(updates) == 3
+    claim_values = updates[0].args[0]
+    assert len(claim_values) == 1
+    assert next(iter(claim_values.values())) is not None
+    assert updates[0].kwargs["synchronize_session"] is False
+    assert reset_token.used_at is None
 
     service.db.add.assert_any_call(user)
-    service.db.add.assert_any_call(reset_token)
     service.db.commit.assert_called_once_with()
     service.db.rollback.assert_not_called()
 
@@ -803,6 +859,8 @@ def test_reset_password_invalidates_other_reset_tokens_and_sessions(
     )
     service.users.get.return_value = user
 
+    configure_reset_password_updates(service)
+
     monkeypatch.setattr(
         auth_service_module,
         "hash_password",
@@ -817,7 +875,7 @@ def test_reset_password_invalidates_other_reset_tokens_and_sessions(
     )
 
     assert result == {"message": RESET_SUCCESS_MESSAGE}
-    assert service.db.query.call_count == 2
+    assert service.db.query.call_count == 3
     service.db.commit.assert_called_once_with()
     service.db.rollback.assert_not_called()
 
@@ -833,6 +891,8 @@ def test_reset_password_rolls_back_when_commit_fails(
         reset_token
     )
     service.users.get.return_value = user
+
+    configure_reset_password_updates(service)
     service.db.commit.side_effect = RuntimeError("database failure")
 
     monkeypatch.setattr(
