@@ -26,6 +26,7 @@ def make_settings(**overrides) -> Settings:
         EMAIL_PROVIDER="manual",
         RATE_LIMIT_ENABLED=True,
         RATE_LIMIT_REDIS_URL="redis://localhost:6379/0",
+        CLOUDFLARE_ORIGIN_VERIFY_SECRET="test-origin-verification-secret-32chars-minimum",
         CORS_ORIGINS=["https://app.novera.example"],
         FRONTEND_URL="https://app.novera.example",
         **overrides,
@@ -251,3 +252,65 @@ def test_production_startup_fails_if_redis_ping_fails(
     redis_client.ping.assert_awaited_once()
     redis_client.aclose.assert_awaited_once()
     fake_engine.dispose.assert_called_once()
+
+
+def _make_production_app_with_mocked_redis(monkeypatch):
+    redis_client = Mock()
+    redis_client.ping = AsyncMock(return_value=True)
+    redis_client.aclose = AsyncMock()
+    monkeypatch.setattr(
+        "app.main.Redis.from_url",
+        lambda *args, **kwargs: redis_client,
+    )
+    return create_application(
+        make_settings(APP_ENV="production")
+    )
+
+
+def test_deployed_origin_verification_keeps_root_and_health_public(
+    monkeypatch,
+) -> None:
+    application = _make_production_app_with_mocked_redis(monkeypatch)
+
+    with TestClient(application) as client:
+        root_response = client.get("/")
+        health_response = client.get("/api/v1/health")
+
+    assert root_response.status_code == 200
+    assert health_response.status_code == 200
+
+
+def test_deployed_origin_verification_blocks_missing_or_wrong_secret(
+    monkeypatch,
+) -> None:
+    application = _make_production_app_with_mocked_redis(monkeypatch)
+
+    with TestClient(application) as client:
+        missing = client.get("/api/v1/origin-guard-test")
+        wrong = client.get(
+            "/api/v1/origin-guard-test",
+            headers={"X-Novera-Origin-Verify": "wrong-secret"},
+        )
+
+    assert missing.status_code == 403
+    assert wrong.status_code == 403
+    assert missing.json() == {"detail": "Forbidden"}
+    assert missing.headers["x-content-type-options"] == "nosniff"
+
+
+def test_deployed_origin_verification_allows_matching_secret(
+    monkeypatch,
+) -> None:
+    application = _make_production_app_with_mocked_redis(monkeypatch)
+    secret = "test-origin-verification-secret-32chars-minimum"
+
+    with TestClient(application) as client:
+        response = client.get(
+            "/api/v1/origin-guard-test",
+            headers={"X-Novera-Origin-Verify": secret},
+        )
+
+    # A verified request reaches routing; this test path intentionally
+    # does not exist, so FastAPI should return 404 rather than 403.
+    assert response.status_code == 404
+    assert response.headers["x-content-type-options"] == "nosniff"

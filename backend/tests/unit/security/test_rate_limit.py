@@ -29,12 +29,15 @@ def make_request(
     deployed=False,
     redis_client=None,
     client=("203.0.113.10", 1234),
+    headers=None,
+    origin_secret="test-origin-verification-secret-32chars-minimum",
 ):
     app = SimpleNamespace(
         state=SimpleNamespace(
             settings=SimpleNamespace(
                 RATE_LIMIT_ENABLED=enabled,
                 is_deployed_environment=deployed,
+                CLOUDFLARE_ORIGIN_VERIFY_SECRET=origin_secret,
             ),
             rate_limit_redis=redis_client,
         )
@@ -43,7 +46,7 @@ def make_request(
         "type": "http",
         "method": "POST",
         "path": "/test",
-        "headers": [],
+        "headers": headers or [],
         "query_string": b"",
         "scheme": "http",
         "server": ("testserver", 80),
@@ -140,6 +143,62 @@ def test_missing_client_identity_fails_closed():
         run_limiter(request)
 
     assert exc.value.status_code == 503
+
+
+def test_deployed_limiter_rejects_unverified_client_ip():
+    redis_client = FakeRedis()
+    request = make_request(
+        deployed=True,
+        redis_client=redis_client,
+        headers=[
+            (b"cf-connecting-ip", b"198.51.100.24"),
+        ],
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        run_limiter(request)
+
+    assert exc.value.status_code == 503
+    assert redis_client.calls == []
+
+
+def test_deployed_limiter_hashes_verified_cloudflare_ip():
+    secret = "test-origin-verification-secret-32chars-minimum"
+    redis_client = FakeRedis()
+    request = make_request(
+        deployed=True,
+        redis_client=redis_client,
+        headers=[
+            (b"x-novera-origin-verify", secret.encode()),
+            (b"cf-connecting-ip", b"198.51.100.24"),
+        ],
+        origin_secret=secret,
+    )
+
+    run_limiter(request, scope="login")
+
+    expected_hash = hashlib.sha256(b"198.51.100.24").hexdigest()
+    assert redis_client.calls[0][2] == (
+        f"novera:rate-limit:login:{expected_hash}"
+    )
+
+
+def test_deployed_limiter_rejects_wrong_origin_secret():
+    redis_client = FakeRedis()
+    request = make_request(
+        deployed=True,
+        redis_client=redis_client,
+        headers=[
+            (b"x-novera-origin-verify", b"wrong-secret"),
+            (b"cf-connecting-ip", b"198.51.100.24"),
+        ],
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        run_limiter(request)
+
+    assert exc.value.status_code == 503
+    assert redis_client.calls == []
 
 
 def test_invalid_limit_configuration_is_rejected():

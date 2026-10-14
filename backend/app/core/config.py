@@ -58,6 +58,7 @@ class Settings(BaseSettings):
 
     RATE_LIMIT_ENABLED: bool = False
     RATE_LIMIT_REDIS_URL: str | None = None
+    CLOUDFLARE_ORIGIN_VERIFY_SECRET: str | None = None
 
     # -------------------------------------------------------------------------
     # Database
@@ -348,6 +349,19 @@ class Settings(BaseSettings):
 
         if not self.is_deployed_environment:
             return self
+
+        origin_secret = self.CLOUDFLARE_ORIGIN_VERIFY_SECRET or ""
+
+        if any(character.isspace() for character in origin_secret):
+            raise ValueError(
+                "CLOUDFLARE_ORIGIN_VERIFY_SECRET must not contain whitespace."
+            )
+
+        if len(origin_secret) < 32:
+            raise ValueError(
+                "CLOUDFLARE_ORIGIN_VERIFY_SECRET must contain at least "
+                "32 characters in staging and production."
+            )
 
         if self.DEBUG:
             raise ValueError(
