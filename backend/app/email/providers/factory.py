@@ -11,6 +11,7 @@ from app.email.providers.base import (
     EmailProvider,
     EmailProviderConfigurationError,
 )
+from app.email.providers.brevo import BrevoEmailProvider
 from app.email.providers.development import (
     DevelopmentEmailProvider,
 )
@@ -22,19 +23,14 @@ def build_email_provider(
     *,
     application_settings: Settings = settings,
 ) -> EmailProvider:
-    """
-    Build the configured outbound email provider.
-    """
+    """Build the configured outbound email provider."""
 
-    normalized_provider = (
-        provider_name.strip().lower()
-    )
+    normalized_provider = provider_name.strip().lower()
 
     if normalized_provider == "development":
         return DevelopmentEmailProvider(
             output_directory=Path(
-                application_settings
-                .EMAIL_DEVELOPMENT_OUTBOX_DIR
+                application_settings.EMAIL_DEVELOPMENT_OUTBOX_DIR
             ),
         )
 
@@ -42,22 +38,20 @@ def build_email_provider(
         return SMTPEmailProvider(
             host=application_settings.EMAIL_SMTP_HOST,
             port=application_settings.EMAIL_SMTP_PORT,
-            username=(
-                application_settings.EMAIL_SMTP_USERNAME
-            ),
-            password=(
-                application_settings.EMAIL_SMTP_PASSWORD
-            ),
-            use_starttls=(
-                application_settings
-                .EMAIL_SMTP_USE_STARTTLS
-            ),
-            use_ssl=(
-                application_settings.EMAIL_SMTP_USE_SSL
-            ),
+            username=application_settings.EMAIL_SMTP_USERNAME,
+            password=application_settings.EMAIL_SMTP_PASSWORD,
+            use_starttls=application_settings.EMAIL_SMTP_USE_STARTTLS,
+            use_ssl=application_settings.EMAIL_SMTP_USE_SSL,
             timeout_seconds=(
-                application_settings
-                .EMAIL_SMTP_TIMEOUT_SECONDS
+                application_settings.EMAIL_SMTP_TIMEOUT_SECONDS
+            ),
+        )
+
+    if normalized_provider == "brevo":
+        return BrevoEmailProvider(
+            api_key=application_settings.BREVO_API_KEY,
+            timeout_seconds=(
+                application_settings.EMAIL_BREVO_TIMEOUT_SECONDS
             ),
         )
 
@@ -70,25 +64,18 @@ def build_email_provider(
             code="manual_provider_not_dispatchable",
         )
 
-    if normalized_provider in {
-        "sendgrid",
-        "mailgun",
-    }:
+    if normalized_provider in {"sendgrid", "mailgun"}:
         raise EmailProviderConfigurationError(
             (
                 f"The {normalized_provider} provider is declared "
                 "but has not been configured yet."
             ),
             code="provider_not_implemented",
-            details={
-                "provider": normalized_provider,
-            },
+            details={"provider": normalized_provider},
         )
 
     raise EmailProviderConfigurationError(
         f"Unsupported email provider: {provider_name!r}.",
         code="provider_unsupported",
-        details={
-            "provider": provider_name,
-        },
+        details={"provider": provider_name},
     )

@@ -115,6 +115,17 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # Brevo HTTPS API provider
+    # -------------------------------------------------------------------------
+
+    BREVO_API_KEY: str | None = None
+    EMAIL_BREVO_TIMEOUT_SECONDS: float = Field(
+        default=20.0,
+        gt=0,
+        le=300,
+    )
+
+    # -------------------------------------------------------------------------
     # Email outbox worker
     # -------------------------------------------------------------------------
 
@@ -249,6 +260,7 @@ class Settings(BaseSettings):
         allowed = {
             "development",
             "smtp",
+            "brevo",
             "sendgrid",
             "mailgun",
             "manual",
@@ -257,7 +269,7 @@ class Settings(BaseSettings):
         if normalized not in allowed:
             raise ValueError(
                 "EMAIL_PROVIDER must be one of: development, smtp, "
-                "sendgrid, mailgun, or manual."
+                "brevo, sendgrid, mailgun, or manual."
             )
 
         return normalized
@@ -339,6 +351,13 @@ class Settings(BaseSettings):
         if self.EMAIL_PROVIDER == "smtp" and not self.EMAIL_SMTP_HOST:
             raise ValueError(
                 "EMAIL_SMTP_HOST is required when EMAIL_PROVIDER=smtp."
+            )
+
+        if self.EMAIL_PROVIDER == "brevo" and not (
+            self.BREVO_API_KEY and self.BREVO_API_KEY.strip()
+        ):
+            raise ValueError(
+                "BREVO_API_KEY is required when EMAIL_PROVIDER=brevo."
             )
 
         if self.EMAIL_OUTBOX_RETRY_MAX_SECONDS < self.EMAIL_OUTBOX_RETRY_BASE_SECONDS:
