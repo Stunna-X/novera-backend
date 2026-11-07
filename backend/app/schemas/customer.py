@@ -50,17 +50,7 @@ class CustomerBaseSchema(BaseModel):
         max_length=50,
     )
 
-    alternate_phone: str | None = Field(
-        default=None,
-        max_length=50,
-    )
-
     address_line_1: str | None = Field(
-        default=None,
-        max_length=255,
-    )
-
-    address_line_2: str | None = Field(
         default=None,
         max_length=255,
     )
@@ -71,16 +61,6 @@ class CustomerBaseSchema(BaseModel):
     )
 
     state: str | None = Field(
-        default=None,
-        max_length=100,
-    )
-
-    postal_code: str | None = Field(
-        default=None,
-        max_length=30,
-    )
-
-    country: str | None = Field(
         default=None,
         max_length=100,
     )
@@ -118,13 +98,9 @@ class CustomerBaseSchema(BaseModel):
     @field_validator(
         "contact_name",
         "phone",
-        "alternate_phone",
         "address_line_1",
-        "address_line_2",
         "city",
         "state",
-        "postal_code",
-        "country",
         "notes",
         mode="before",
     )
@@ -218,17 +194,7 @@ class UpdateCustomerSchema(BaseModel):
         max_length=50,
     )
 
-    alternate_phone: str | None = Field(
-        default=None,
-        max_length=50,
-    )
-
     address_line_1: str | None = Field(
-        default=None,
-        max_length=255,
-    )
-
-    address_line_2: str | None = Field(
         default=None,
         max_length=255,
     )
@@ -239,16 +205,6 @@ class UpdateCustomerSchema(BaseModel):
     )
 
     state: str | None = Field(
-        default=None,
-        max_length=100,
-    )
-
-    postal_code: str | None = Field(
-        default=None,
-        max_length=30,
-    )
-
-    country: str | None = Field(
         default=None,
         max_length=100,
     )
@@ -286,13 +242,9 @@ class UpdateCustomerSchema(BaseModel):
     @field_validator(
         "contact_name",
         "phone",
-        "alternate_phone",
         "address_line_1",
-        "address_line_2",
         "city",
         "state",
-        "postal_code",
-        "country",
         "notes",
         mode="before",
     )
@@ -369,14 +321,9 @@ class CustomerResponse(BaseModel):
     contact_name: str | None = None
     email: EmailStr | None = None
     phone: str | None = None
-    alternate_phone: str | None = None
-
     address_line_1: str | None = None
-    address_line_2: str | None = None
     city: str | None = None
     state: str | None = None
-    postal_code: str | None = None
-    country: str | None = None
 
     notes: str | None = None
     is_active: bool

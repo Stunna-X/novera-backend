@@ -143,11 +143,8 @@ class InvoiceService:
 
         parts = [
             customer.address_line_1,
-            customer.address_line_2,
             customer.city,
             customer.state,
-            customer.postal_code,
-            customer.country,
         ]
 
         normalized = [
