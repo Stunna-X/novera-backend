@@ -1,3 +1,4 @@
+
 """
 Customer model.
 
@@ -92,17 +93,7 @@ class Customer(BaseModel):
         nullable=True,
     )
 
-    alternate_phone: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-    )
-
     address_line_1: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
-    )
-
-    address_line_2: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
@@ -113,16 +104,6 @@ class Customer(BaseModel):
     )
 
     state: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-    )
-
-    postal_code: Mapped[str | None] = mapped_column(
-        String(30),
-        nullable=True,
-    )
-
-    country: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
     )
