@@ -346,6 +346,16 @@ class WorkOrderWorkforceAssignment(BaseModel):
         nullable=False,
     )
 
+    responsibility: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    custom_responsibility: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
+
     work_order: Mapped["WorkOrder"] = relationship(
         "WorkOrder",
         back_populates="workforce_assignments",

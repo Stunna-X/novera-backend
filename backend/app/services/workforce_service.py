@@ -45,14 +45,13 @@ class WorkforceService:
         membership_id: uuid.UUID,
     ) -> Membership:
         """
-        Retrieve an organization membership.
+        Retrieve and validate an optional organization membership.
         """
 
         membership = (
             self.db.query(Membership)
             .options(
                 joinedload(Membership.user),
-                joinedload(Membership.role),
             )
             .filter(
                 Membership.id == membership_id,
@@ -106,55 +105,38 @@ class WorkforceService:
 
         return profile
 
-    def _ensure_employee_code_available(
-        self,
-        organization_id: uuid.UUID,
-        employee_code: str | None,
-        *,
-        exclude_profile_id: uuid.UUID | None = None,
-    ) -> None:
-        """
-        Ensure an employee code is unique.
-        """
-
-        if not employee_code:
-            return
-
-        if self.workforce.employee_code_exists(
-            organization_id=organization_id,
-            employee_code=employee_code,
-            exclude_profile_id=exclude_profile_id,
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Another workforce member already "
-                    "uses this employee code."
-                ),
-            )
-
     @staticmethod
     def _build_response(
         profile: WorkforceProfile,
     ) -> WorkforceProfileResponse:
         """
         Convert an ORM profile into an API response.
+
+        Linked account information is optional.
         """
 
         membership = profile.membership
-        user = membership.user
-        role = membership.role
+        user = (
+            membership.user
+            if membership is not None
+            else None
+        )
 
         return WorkforceProfileResponse(
             id=profile.id,
             organization_id=profile.organization_id,
+            full_name=profile.full_name,
             membership_id=profile.membership_id,
-            user_id=membership.user_id,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            email=user.email,
-            role_name=role.name,
-            employee_code=profile.employee_code,
+            user_id=(
+                membership.user_id
+                if membership is not None
+                else None
+            ),
+            email=(
+                user.email
+                if user is not None
+                else None
+            ),
             job_title=profile.job_title,
             employment_type=profile.employment_type,
             phone=profile.phone,
@@ -165,7 +147,6 @@ class WorkforceService:
                 profile.emergency_contact_phone
             ),
             skills=profile.skills or [],
-            joined_on=profile.joined_on,
             status=profile.status,
             is_available=profile.is_available,
             is_active=profile.is_active,
@@ -180,46 +161,49 @@ class WorkforceService:
         payload: CreateWorkforceProfileSchema,
     ) -> WorkforceProfileResponse:
         """
-        Create an operational profile for a member.
+        Create an organization employee.
+
+        A linked organization membership is optional.
         """
 
-        membership = self._get_membership_or_404(
-            organization_id=organization_id,
-            membership_id=payload.membership_id,
-        )
+        membership = None
 
-        existing_profile = (
-            self.workforce.get_by_membership(
+        if payload.membership_id is not None:
+            membership = self._get_membership_or_404(
                 organization_id=organization_id,
-                membership_id=membership.id,
-            )
-        )
-
-        if existing_profile is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "This organization member already has "
-                    "a workforce profile."
-                ),
+                membership_id=payload.membership_id,
             )
 
-        profile_data = payload.model_dump()
-        profile_data.pop("membership_id")
+            existing_profile = (
+                self.workforce.get_by_membership(
+                    organization_id=organization_id,
+                    membership_id=membership.id,
+                )
+            )
 
-        self._ensure_employee_code_available(
-            organization_id=organization_id,
-            employee_code=profile_data.get(
-                "employee_code"
-            ),
+            if existing_profile is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "This organization member already has "
+                        "a workforce profile."
+                    ),
+                )
+
+        profile_data = payload.model_dump(
+            exclude={"membership_id"}
         )
 
-        if profile_data["status"] != "active":
+        if profile_data.get("status", "active") != "active":
             profile_data["is_available"] = False
 
         profile = WorkforceProfile(
             organization_id=organization_id,
-            membership_id=membership.id,
+            membership_id=(
+                membership.id
+                if membership is not None
+                else None
+            ),
             **profile_data,
         )
 
@@ -351,32 +335,26 @@ class WorkforceService:
             exclude_unset=True
         )
 
-        if (
-            "status" in update_data
-            and update_data["status"] is None
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Workforce status cannot be null.",
-            )
+        non_nullable_fields = {
+            "full_name": "Employee name cannot be null.",
+            "status": "Workforce status cannot be null.",
+            "is_available": "Availability cannot be null.",
+            "skills": "Skills cannot be null. Provide an empty list to clear skills.",
+        }
 
-        if (
-            "is_available" in update_data
-            and update_data["is_available"] is None
+        for field_name, error_message in (
+            non_nullable_fields.items()
         ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Availability cannot be null.",
-            )
-
-        if "employee_code" in update_data:
-            self._ensure_employee_code_available(
-                organization_id=organization_id,
-                employee_code=update_data[
-                    "employee_code"
-                ],
-                exclude_profile_id=profile.id,
-            )
+            if (
+                field_name in update_data
+                and update_data[field_name] is None
+            ):
+                raise HTTPException(
+                    status_code=(
+                        status.HTTP_422_UNPROCESSABLE_CONTENT
+                    ),
+                    detail=error_message,
+                )
 
         for field_name, field_value in update_data.items():
             setattr(

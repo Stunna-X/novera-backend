@@ -266,19 +266,7 @@ class SchedulingService:
         if isinstance(resource, Asset):
             return resource.name
 
-        membership = resource.membership
-
-        if membership and membership.user:
-            user = membership.user
-
-            return (
-                f"{user.first_name} {user.last_name}"
-            ).strip()
-
-        if resource.employee_code:
-            return resource.employee_code
-
-        return str(resource.id)
+        return resource.full_name
 
     def _record_activity(
         self,

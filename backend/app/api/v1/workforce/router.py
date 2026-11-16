@@ -53,7 +53,7 @@ def create_workforce_profile(
     db: Session = Depends(get_db),
 ) -> WorkforceProfileResponse:
     """
-    Create a workforce profile for an organization member.
+    Create a workforce profile for an organization employee.
 
     Requires:
     - workforce.create

@@ -1,19 +1,17 @@
 """
 Workforce profile model.
 
-Extends an organization membership with operational
-employment and availability information.
+Represents an organization-level employee who may optionally
+be linked to a Novera organization membership.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import date
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
-    Date,
     ForeignKey,
     Index,
     String,
@@ -37,7 +35,7 @@ if TYPE_CHECKING:
 
 class WorkforceProfile(BaseModel):
     """
-    Organization-scoped operational profile for a member.
+    Organization-scoped operational employee profile.
     """
 
     __tablename__ = "workforce_profiles"
@@ -46,11 +44,6 @@ class WorkforceProfile(BaseModel):
         UniqueConstraint(
             "membership_id",
             name="uq_workforce_profiles_membership",
-        ),
-        UniqueConstraint(
-            "organization_id",
-            "employee_code",
-            name="uq_workforce_profiles_organization_employee_code",
         ),
         Index(
             "ix_workforce_profiles_organization_status",
@@ -74,19 +67,19 @@ class WorkforceProfile(BaseModel):
         index=True,
     )
 
-    membership_id: Mapped[uuid.UUID] = mapped_column(
+    full_name: Mapped[str] = mapped_column(
+        String(200),
+        nullable=False,
+    )
+
+    membership_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey(
             "memberships.id",
-            ondelete="CASCADE",
+            ondelete="SET NULL",
         ),
-        nullable=False,
-        index=True,
-    )
-
-    employee_code: Mapped[str | None] = mapped_column(
-        String(50),
         nullable=True,
+        index=True,
     )
 
     job_title: Mapped[str | None] = mapped_column(
@@ -120,11 +113,6 @@ class WorkforceProfile(BaseModel):
         default=list,
     )
 
-    joined_on: Mapped[date | None] = mapped_column(
-        Date,
-        nullable=True,
-    )
-
     status: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
@@ -151,7 +139,7 @@ class WorkforceProfile(BaseModel):
         index=True,
     )
 
-    membership: Mapped["Membership"] = relationship(
+    membership: Mapped["Membership | None"] = relationship(
         "Membership",
         lazy="joined",
     )
@@ -161,13 +149,9 @@ class WorkforceProfile(BaseModel):
     )
 
     def __repr__(self) -> str:
-        """
-        Return a developer-friendly representation.
-        """
-
         return (
             f"<WorkforceProfile "
             f"id={self.id} "
-            f"membership_id={self.membership_id} "
+            f"full_name={self.full_name!r} "
             f"organization_id={self.organization_id}>"
         )

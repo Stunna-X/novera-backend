@@ -28,9 +28,7 @@ from app.services.workforce_service import WorkforceService
 
 @dataclass(frozen=True)
 class WorkforceIsolationData:
-    """
-    Identifiers for a dedicated two-tenant workforce dataset.
-    """
+    """Identifiers for a dedicated two-tenant workforce dataset."""
 
     organization_id: uuid.UUID
     other_organization_id: uuid.UUID
@@ -45,9 +43,7 @@ class WorkforceIsolationData:
 def workforce_isolation_data(
     integration_session_factory: sessionmaker[Session],
 ) -> Iterator[WorkforceIsolationData]:
-    """
-    Create and remove a dedicated workforce isolation dataset.
-    """
+    """Create and remove a dedicated workforce isolation dataset."""
 
     token = uuid.uuid4().hex
 
@@ -115,12 +111,7 @@ def workforce_isolation_data(
         )
         db.flush()
 
-        db.add_all(
-            [
-                membership,
-                other_membership,
-            ]
-        )
+        db.add_all([membership, other_membership])
         db.commit()
 
     data = WorkforceIsolationData(
@@ -169,14 +160,10 @@ def workforce_isolation_data(
                 )
             )
             db.execute(
-                delete(User).where(
-                    User.id.in_(user_ids)
-                )
+                delete(User).where(User.id.in_(user_ids))
             )
             db.execute(
-                delete(Role).where(
-                    Role.id == data.role_id
-                )
+                delete(Role).where(Role.id == data.role_id)
             )
             db.commit()
 
@@ -186,9 +173,7 @@ def _assert_not_found(
     *,
     detail: str,
 ) -> None:
-    """
-    Assert an information-leak-safe not-found response.
-    """
+    """Assert an information-leak-safe not-found response."""
 
     assert error.value.status_code == 404
     assert error.value.detail == detail
@@ -200,15 +185,17 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
 ) -> None:
     """
     Foreign memberships and profile IDs must remain tenant-isolated.
+
+    Also verifies that standalone employees can exist without memberships.
     """
 
-    token = uuid.uuid4().hex
     original_job_title = "Lead Borehole Technician"
     foreign_job_title = "Foreign Field Technician"
 
     with integration_session_factory() as db:
         service = WorkforceService(db)
 
+        # A membership belonging to another organization must be rejected.
         with pytest.raises(
             HTTPException
         ) as foreign_membership_error:
@@ -217,11 +204,10 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
                     workforce_isolation_data.organization_id
                 ),
                 payload=CreateWorkforceProfileSchema(
+                    full_name="Foreign Technician",
                     membership_id=(
-                        workforce_isolation_data
-                        .other_membership_id
+                        workforce_isolation_data.other_membership_id
                     ),
-                    employee_code=f"INVALID-{token[:10]}",
                     job_title="Cross-tenant technician",
                     employment_type="full_time",
                     skills=["drilling"],
@@ -233,15 +219,16 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
             detail="Organization membership not found.",
         )
 
+        # A membership-linked employee remains supported.
         profile = service.create_profile(
             organization_id=(
                 workforce_isolation_data.organization_id
             ),
             payload=CreateWorkforceProfileSchema(
+                full_name="Primary Technician",
                 membership_id=(
                     workforce_isolation_data.membership_id
                 ),
-                employee_code=f"PRI-{token[:10]}",
                 job_title=original_job_title,
                 employment_type="full_time",
                 skills=[
@@ -253,17 +240,38 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
             ),
         )
 
-        foreign_profile = service.create_profile(
+        # A standalone employee must not need a Novera user account.
+        standalone_profile = service.create_profile(
             organization_id=(
-                workforce_isolation_data
-                .other_organization_id
+                workforce_isolation_data.organization_id
             ),
             payload=CreateWorkforceProfileSchema(
+                full_name="Standalone Field Technician",
+                job_title="Field Technician",
+                employment_type="contractor",
+                skills=["field inspection"],
+                status="active",
+                is_available=True,
+            ),
+        )
+
+        assert standalone_profile.full_name == (
+            "Standalone Field Technician"
+        )
+        assert standalone_profile.membership_id is None
+        assert standalone_profile.user_id is None
+        assert standalone_profile.email is None
+
+        # The foreign organization can create its own linked employee.
+        foreign_profile = service.create_profile(
+            organization_id=(
+                workforce_isolation_data.other_organization_id
+            ),
+            payload=CreateWorkforceProfileSchema(
+                full_name="Foreign Technician",
                 membership_id=(
-                    workforce_isolation_data
-                    .other_membership_id
+                    workforce_isolation_data.other_membership_id
                 ),
-                employee_code=f"FOR-{token[:10]}",
                 job_title=foreign_job_title,
                 employment_type="contractor",
                 skills=["field inspection"],
@@ -273,16 +281,17 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
         )
 
         profile_id = profile.id
+        standalone_profile_id = standalone_profile.id
         foreign_profile_id = foreign_profile.id
 
+    # Use a fresh session for the tenant-isolation assertions.
     with integration_session_factory() as db:
         service = WorkforceService(db)
 
         with pytest.raises(HTTPException) as read_error:
             service.get_profile(
                 organization_id=(
-                    workforce_isolation_data
-                    .other_organization_id
+                    workforce_isolation_data.other_organization_id
                 ),
                 profile_id=profile_id,
             )
@@ -292,6 +301,20 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
             detail="Workforce profile not found.",
         )
 
+        with pytest.raises(HTTPException) as standalone_read_error:
+            service.get_profile(
+                organization_id=(
+                    workforce_isolation_data.other_organization_id
+                ),
+                profile_id=standalone_profile_id,
+            )
+
+        _assert_not_found(
+            standalone_read_error,
+            detail="Workforce profile not found.",
+        )
+
+        # The foreign organization must not see either primary employee.
         foreign_profiles = service.list_profiles(
             organization_id=(
                 workforce_isolation_data.other_organization_id
@@ -299,18 +322,32 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
         )
 
         foreign_profile_ids = {
-            item.id
-            for item in foreign_profiles.items
+            item.id for item in foreign_profiles.items
         }
 
         assert foreign_profile_id in foreign_profile_ids
         assert profile_id not in foreign_profile_ids
+        assert standalone_profile_id not in foreign_profile_ids
+
+        # The primary organization must see both of its employees.
+        primary_profiles = service.list_profiles(
+            organization_id=(
+                workforce_isolation_data.organization_id
+            ),
+        )
+
+        primary_profile_ids = {
+            item.id for item in primary_profiles.items
+        }
+
+        assert profile_id in primary_profile_ids
+        assert standalone_profile_id in primary_profile_ids
+        assert foreign_profile_id not in primary_profile_ids
 
         with pytest.raises(HTTPException) as update_error:
             service.update_profile(
                 organization_id=(
-                    workforce_isolation_data
-                    .other_organization_id
+                    workforce_isolation_data.other_organization_id
                 ),
                 profile_id=profile_id,
                 payload=UpdateWorkforceProfileSchema(
@@ -329,8 +366,7 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
         ) as deactivate_error:
             service.deactivate_profile(
                 organization_id=(
-                    workforce_isolation_data
-                    .other_organization_id
+                    workforce_isolation_data.other_organization_id
                 ),
                 profile_id=profile_id,
             )
@@ -340,6 +376,7 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
             detail="Workforce profile not found.",
         )
 
+        # Confirm the failed cross-tenant operations changed nothing.
         original_profile = service.get_profile(
             organization_id=(
                 workforce_isolation_data.organization_id
@@ -347,10 +384,7 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
             profile_id=profile_id,
         )
 
-        assert (
-            original_profile.job_title
-            == original_job_title
-        )
+        assert original_profile.job_title == original_job_title
         assert original_profile.skills == [
             "borehole drilling",
             "pump installation",
@@ -358,16 +392,27 @@ def test_workforce_profiles_cannot_cross_organization_boundary(
         assert original_profile.is_active is True
         assert original_profile.is_available is True
 
+        unchanged_standalone_profile = service.get_profile(
+            organization_id=(
+                workforce_isolation_data.organization_id
+            ),
+            profile_id=standalone_profile_id,
+        )
+
+        assert unchanged_standalone_profile.full_name == (
+            "Standalone Field Technician"
+        )
+        assert unchanged_standalone_profile.membership_id is None
+        assert unchanged_standalone_profile.user_id is None
+        assert unchanged_standalone_profile.email is None
+        assert unchanged_standalone_profile.is_active is True
+
         unchanged_foreign_profile = service.get_profile(
             organization_id=(
-                workforce_isolation_data
-                .other_organization_id
+                workforce_isolation_data.other_organization_id
             ),
             profile_id=foreign_profile_id,
         )
 
-        assert (
-            unchanged_foreign_profile.job_title
-            == foreign_job_title
-        )
+        assert unchanged_foreign_profile.job_title == foreign_job_title
         assert unchanged_foreign_profile.is_active is True

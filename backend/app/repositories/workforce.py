@@ -16,7 +16,6 @@ from sqlalchemy.orm import (
 )
 
 from app.models.membership import Membership
-from app.models.role import Role
 from app.models.user import User
 from app.models.workforce_profile import WorkforceProfile
 from app.repositories.base import BaseRepository
@@ -38,9 +37,10 @@ class WorkforceRepository(
             WorkforceProfile,
         )
 
-    def _with_member_details(self):
+    @staticmethod
+    def _with_member_details():
         """
-        Return eager-loading options for membership details.
+        Eager-load optional linked account details.
         """
 
         return (
@@ -49,12 +49,81 @@ class WorkforceRepository(
             ).joinedload(
                 Membership.user
             ),
-            joinedload(
-                WorkforceProfile.membership
-            ).joinedload(
-                Membership.role
-            ),
         )
+
+    def _organization_query(
+        self,
+        organization_id: uuid.UUID,
+        *,
+        search: str | None = None,
+        status_filter: str | None = None,
+        available_only: bool = False,
+        include_inactive: bool = False,
+    ):
+        """
+        Build a consistently filtered organization query.
+
+        Standalone employees remain included because membership
+        and user records are optional.
+        """
+
+        query = self.db.query(
+            WorkforceProfile
+        ).filter(
+            WorkforceProfile.organization_id
+            == organization_id
+        )
+
+        if not include_inactive:
+            query = query.filter(
+                WorkforceProfile.is_active.is_(True)
+            )
+
+        if status_filter:
+            query = query.filter(
+                WorkforceProfile.status
+                == status_filter
+            )
+
+        if available_only:
+            query = query.filter(
+                WorkforceProfile.is_available.is_(True),
+                WorkforceProfile.is_active.is_(True),
+            )
+
+        normalized_search = (
+            search.strip()
+            if search
+            else None
+        )
+
+        if normalized_search:
+            pattern = f"%{normalized_search}%"
+
+            query = (
+                query.outerjoin(
+                    Membership,
+                    WorkforceProfile.membership_id
+                    == Membership.id,
+                )
+                .outerjoin(
+                    User,
+                    Membership.user_id == User.id,
+                )
+                .filter(
+                    or_(
+                        WorkforceProfile.full_name.ilike(
+                            pattern
+                        ),
+                        WorkforceProfile.job_title.ilike(
+                            pattern
+                        ),
+                        User.email.ilike(pattern),
+                    )
+                )
+            )
+
+        return query
 
     def create_profile(
         self,
@@ -63,11 +132,6 @@ class WorkforceRepository(
         """
         Persist a workforce profile.
         """
-
-        if profile.employee_code:
-            profile.employee_code = (
-                profile.employee_code.strip().upper()
-            )
 
         return self.create(
             profile
@@ -109,7 +173,7 @@ class WorkforceRepository(
         membership_id: uuid.UUID,
     ) -> WorkforceProfile | None:
         """
-        Retrieve a profile by membership.
+        Retrieve a profile by its optional membership.
         """
 
         return (
@@ -139,72 +203,25 @@ class WorkforceRepository(
     ) -> list[WorkforceProfile]:
         """
         Retrieve organization workforce profiles.
+
+        Includes employees without linked user accounts.
         """
 
-        query = (
-            self.db.query(WorkforceProfile)
-            .options(
-                *self._with_member_details()
-            )
-            .join(
-                Membership,
-                WorkforceProfile.membership_id
-                == Membership.id,
-            )
-            .join(
-                User,
-                Membership.user_id == User.id,
-            )
-            .filter(
-                WorkforceProfile.organization_id
-                == organization_id
-            )
+        query = self._organization_query(
+            organization_id=organization_id,
+            search=search,
+            status_filter=status_filter,
+            available_only=available_only,
+            include_inactive=include_inactive,
         )
-
-        if not include_inactive:
-            query = query.filter(
-                WorkforceProfile.is_active.is_(True)
-            )
-
-        if status_filter:
-            query = query.filter(
-                WorkforceProfile.status
-                == status_filter
-            )
-
-        if available_only:
-            query = query.filter(
-                WorkforceProfile.is_available.is_(True),
-                WorkforceProfile.is_active.is_(True),
-            )
-
-        normalized_search = (
-            search.strip()
-            if search
-            else None
-        )
-
-        if normalized_search:
-            pattern = f"%{normalized_search}%"
-
-            query = query.filter(
-                or_(
-                    User.first_name.ilike(pattern),
-                    User.last_name.ilike(pattern),
-                    User.email.ilike(pattern),
-                    WorkforceProfile.employee_code.ilike(
-                        pattern
-                    ),
-                    WorkforceProfile.job_title.ilike(
-                        pattern
-                    ),
-                )
-            )
 
         return (
-            query.order_by(
-                User.first_name.asc(),
-                User.last_name.asc(),
+            query.options(
+                *self._with_member_details()
+            )
+            .order_by(
+                WorkforceProfile.full_name.asc(),
+                WorkforceProfile.id.asc(),
             )
             .offset(skip)
             .limit(limit)
@@ -222,102 +239,24 @@ class WorkforceRepository(
     ) -> int:
         """
         Count organization workforce profiles.
+
+        Uses the same filters as the listing query.
         """
 
-        query = (
-            self.db.query(
+        query = self._organization_query(
+            organization_id=organization_id,
+            search=search,
+            status_filter=status_filter,
+            available_only=available_only,
+            include_inactive=include_inactive,
+        )
+
+        return (
+            query.with_entities(
                 func.count(WorkforceProfile.id)
-            )
-            .join(
-                Membership,
-                WorkforceProfile.membership_id
-                == Membership.id,
-            )
-            .join(
-                User,
-                Membership.user_id == User.id,
-            )
-            .filter(
-                WorkforceProfile.organization_id
-                == organization_id
-            )
+            ).scalar()
+            or 0
         )
-
-        if not include_inactive:
-            query = query.filter(
-                WorkforceProfile.is_active.is_(True)
-            )
-
-        if status_filter:
-            query = query.filter(
-                WorkforceProfile.status
-                == status_filter
-            )
-
-        if available_only:
-            query = query.filter(
-                WorkforceProfile.is_available.is_(True),
-                WorkforceProfile.is_active.is_(True),
-            )
-
-        normalized_search = (
-            search.strip()
-            if search
-            else None
-        )
-
-        if normalized_search:
-            pattern = f"%{normalized_search}%"
-
-            query = query.filter(
-                or_(
-                    User.first_name.ilike(pattern),
-                    User.last_name.ilike(pattern),
-                    User.email.ilike(pattern),
-                    WorkforceProfile.employee_code.ilike(
-                        pattern
-                    ),
-                    WorkforceProfile.job_title.ilike(
-                        pattern
-                    ),
-                )
-            )
-
-        return query.scalar() or 0
-
-    def employee_code_exists(
-        self,
-        organization_id: uuid.UUID,
-        employee_code: str,
-        *,
-        exclude_profile_id: uuid.UUID | None = None,
-    ) -> bool:
-        """
-        Check employee-code uniqueness.
-        """
-
-        normalized_code = (
-            employee_code.strip().lower()
-        )
-
-        query = self.db.query(
-            WorkforceProfile.id
-        ).filter(
-            WorkforceProfile.organization_id
-            == organization_id,
-            func.lower(
-                WorkforceProfile.employee_code
-            )
-            == normalized_code,
-        )
-
-        if exclude_profile_id is not None:
-            query = query.filter(
-                WorkforceProfile.id
-                != exclude_profile_id
-            )
-
-        return query.first() is not None
 
     def update_profile(
         self,
@@ -326,11 +265,6 @@ class WorkforceRepository(
         """
         Persist workforce-profile changes.
         """
-
-        if profile.employee_code:
-            profile.employee_code = (
-                profile.employee_code.strip().upper()
-            )
 
         return self.update(
             profile
