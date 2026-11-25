@@ -11,7 +11,6 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from app.enums.user import UserStatus
 from app.schemas.workforce import (
     CreateWorkforceProfileSchema,
     UpdateWorkforceProfileSchema,
@@ -25,31 +24,25 @@ pytestmark = pytest.mark.unit
 def make_profile(
     *,
     organization_id: uuid.UUID | None = None,
-    membership_id: uuid.UUID | None = None,
+    full_name: str = "Joseph Employee",
     status: str = "active",
-    is_available: bool = True,
     is_active: bool = True,
 ) -> SimpleNamespace:
-    """Build a profile-shaped object without database access."""
+    """Build a standalone employee profile without database access."""
+
+    now = datetime.now(UTC)
 
     return SimpleNamespace(
         id=uuid.uuid4(),
         organization_id=organization_id or uuid.uuid4(),
-        full_name="Joseph Employee",
-        membership_id=membership_id,
-        membership=None,
+        full_name=full_name,
         job_title="Driller",
         employment_type="full_time",
-        phone=None,
-        emergency_contact_name=None,
-        emergency_contact_phone=None,
-        skills=["drilling"],
+        phone="08012345678",
         status=status,
-        is_available=is_available,
         is_active=is_active,
-        notes=None,
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
+        created_at=now,
+        updated_at=now,
     )
 
 
@@ -60,30 +53,34 @@ def service() -> WorkforceService:
     return instance
 
 
-def test_build_response_supports_standalone_employee() -> None:
+def test_build_response_contains_standalone_employee_fields() -> None:
     profile = make_profile()
 
     response = WorkforceService._build_response(profile)
 
+    assert response.id == profile.id
+    assert response.organization_id == profile.organization_id
     assert response.full_name == profile.full_name
-    assert response.membership_id is None
-    assert response.user_id is None
-    assert response.email is None
-    assert response.skills == ["drilling"]
+    assert response.job_title == profile.job_title
+    assert response.employment_type == profile.employment_type
+    assert response.phone == profile.phone
+    assert response.status == profile.status
+    assert response.is_active is True
 
 
-def test_create_profile_allows_standalone_employee(
+def test_create_profile_creates_standalone_employee(
     service: WorkforceService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     organization_id = uuid.uuid4()
     loaded_profile = make_profile(
         organization_id=organization_id,
+        full_name="Ada Worker",
     )
 
     def build_profile(**kwargs: object) -> SimpleNamespace:
         return SimpleNamespace(
-            id=uuid.uuid4(),
+            id=loaded_profile.id,
             **kwargs,
         )
 
@@ -99,146 +96,26 @@ def test_create_profile_allows_standalone_employee(
     response = service.create_profile(
         organization_id=organization_id,
         payload=CreateWorkforceProfileSchema(
-            full_name="Joseph Employee",
+            full_name="Ada Worker",
+            job_title="Driller",
+            employment_type="full_time",
         ),
     )
 
-    created_profile = (
-        service.workforce.create_profile.call_args.args[0]
-    )
+    created_profile = service.workforce.create_profile.call_args.args[0]
 
     assert created_profile.organization_id == organization_id
-    assert created_profile.membership_id is None
-    assert response.membership_id is None
-    assert response.user_id is None
-    assert response.email is None
+    assert created_profile.full_name == "Ada Worker"
+    assert created_profile.job_title == "Driller"
+    assert created_profile.employment_type == "full_time"
+    assert response.full_name == "Ada Worker"
     service.db.rollback.assert_not_called()
-
-
-def test_create_profile_links_valid_membership(
-    service: WorkforceService,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    organization_id = uuid.uuid4()
-    membership_id = uuid.uuid4()
-    membership = SimpleNamespace(
-        id=membership_id,
-        user_id=uuid.uuid4(),
-        user=SimpleNamespace(
-            status=UserStatus.ACTIVE,
-            email="employee@example.com",
-        ),
-    )
-    loaded_profile = make_profile(
-        organization_id=organization_id,
-        membership_id=membership_id,
-    )
-    loaded_profile.membership = membership
-
-    service.db.query.return_value.options.return_value.filter.return_value.first.return_value = (
-        membership
-    )
-    service.workforce.get_by_membership.return_value = None
-
-    def build_profile(**kwargs: object) -> SimpleNamespace:
-        return SimpleNamespace(
-            id=uuid.uuid4(),
-            **kwargs,
-        )
-
-    monkeypatch.setattr(
-        "app.services.workforce_service.WorkforceProfile",
-        build_profile,
-    )
-    service.workforce.create_profile.side_effect = lambda profile: profile
-    service.workforce.get_by_id_for_organization.return_value = (
-        loaded_profile
-    )
-
-    response = service.create_profile(
-        organization_id=organization_id,
-        payload=CreateWorkforceProfileSchema(
-            full_name="Joseph Employee",
-            membership_id=membership_id,
-        ),
-    )
-
-    created_profile = (
-        service.workforce.create_profile.call_args.args[0]
-    )
-
-    assert created_profile.membership_id == membership_id
-    assert response.membership_id == membership_id
-    assert response.user_id == membership.user_id
-    assert response.email == "employee@example.com"
-
-
-def test_create_profile_rejects_inactive_membership(
-    service: WorkforceService,
-) -> None:
-    organization_id = uuid.uuid4()
-    membership_id = uuid.uuid4()
-    membership = SimpleNamespace(
-        id=membership_id,
-        user=SimpleNamespace(status=UserStatus.INACTIVE),
-    )
-    service.db.query.return_value.options.return_value.filter.return_value.first.return_value = (
-        membership
-    )
-
-    with pytest.raises(HTTPException) as exc_info:
-        service.create_profile(
-            organization_id=organization_id,
-            payload=CreateWorkforceProfileSchema(
-                full_name="Joseph Employee",
-                membership_id=membership_id,
-            ),
-        )
-
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == (
-        "The selected user account is not active."
-    )
-    service.workforce.create_profile.assert_not_called()
-
-
-def test_create_profile_rejects_duplicate_membership(
-    service: WorkforceService,
-) -> None:
-    organization_id = uuid.uuid4()
-    membership_id = uuid.uuid4()
-    membership = SimpleNamespace(
-        id=membership_id,
-        user=SimpleNamespace(status=UserStatus.ACTIVE),
-    )
-
-    service.db.query.return_value.options.return_value.filter.return_value.first.return_value = (
-        membership
-    )
-    service.workforce.get_by_membership.return_value = make_profile(
-        organization_id=organization_id,
-        membership_id=membership_id,
-    )
-
-    with pytest.raises(HTTPException) as exc_info:
-        service.create_profile(
-            organization_id=organization_id,
-            payload=CreateWorkforceProfileSchema(
-                full_name="Joseph Employee",
-                membership_id=membership_id,
-            ),
-        )
-
-    assert exc_info.value.status_code == 409
-    service.workforce.create_profile.assert_not_called()
 
 
 def test_create_profile_rolls_back_integrity_error(
     service: WorkforceService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    organization_id = uuid.uuid4()
-
     monkeypatch.setattr(
         "app.services.workforce_service.WorkforceProfile",
         lambda **kwargs: SimpleNamespace(
@@ -254,24 +131,46 @@ def test_create_profile_rolls_back_integrity_error(
 
     with pytest.raises(HTTPException) as exc_info:
         service.create_profile(
-            organization_id=organization_id,
+            organization_id=uuid.uuid4(),
             payload=CreateWorkforceProfileSchema(
                 full_name="Joseph Employee",
             ),
         )
 
     assert exc_info.value.status_code == 409
+    assert "conflicts" in exc_info.value.detail
     service.db.rollback.assert_called_once()
+
+
+def test_create_profile_returns_error_if_created_record_cannot_be_loaded(
+    service: WorkforceService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_profile = SimpleNamespace(id=uuid.uuid4())
+
+    monkeypatch.setattr(
+        "app.services.workforce_service.WorkforceProfile",
+        lambda **kwargs: created_profile,
+    )
+    service.workforce.create_profile.return_value = created_profile
+    service.workforce.get_by_id_for_organization.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.create_profile(
+            organization_id=uuid.uuid4(),
+            payload=CreateWorkforceProfileSchema(
+                full_name="Joseph Employee",
+            ),
+        )
+
+    assert exc_info.value.status_code == 500
 
 
 def test_update_profile_preserves_omitted_fields(
     service: WorkforceService,
 ) -> None:
     organization_id = uuid.uuid4()
-    profile = make_profile(
-        organization_id=organization_id,
-        is_available=False,
-    )
+    profile = make_profile(organization_id=organization_id)
     service._get_profile_or_404 = MagicMock(return_value=profile)
     service.workforce.update_profile.side_effect = lambda item: item
 
@@ -285,28 +184,28 @@ def test_update_profile_preserves_omitted_fields(
 
     assert profile.job_title == "Senior Driller"
     assert profile.full_name == "Joseph Employee"
-    assert profile.is_available is False
+    assert profile.phone == "08012345678"
     assert response.full_name == "Joseph Employee"
     service.workforce.update_profile.assert_called_once_with(profile)
 
 
-def test_update_profile_forces_unavailable_for_inactive_status(
+def test_update_profile_changes_only_supplied_status(
     service: WorkforceService,
 ) -> None:
-    profile = make_profile(is_available=True)
+    profile = make_profile()
     service._get_profile_or_404 = MagicMock(return_value=profile)
     service.workforce.update_profile.side_effect = lambda item: item
 
-    service.update_profile(
+    response = service.update_profile(
         organization_id=profile.organization_id,
         profile_id=profile.id,
-        payload=UpdateWorkforceProfileSchema(
-            status="inactive",
-        ),
+        payload=UpdateWorkforceProfileSchema(status="inactive"),
     )
 
     assert profile.status == "inactive"
-    assert profile.is_available is False
+    assert profile.is_active is True
+    assert response.status == "inactive"
+    assert response.is_active is True
 
 
 @pytest.mark.parametrize(
@@ -314,7 +213,6 @@ def test_update_profile_forces_unavailable_for_inactive_status(
     [
         ("full_name", "Employee name cannot be null."),
         ("status", "Workforce status cannot be null."),
-        ("is_available", "Availability cannot be null."),
     ],
 )
 def test_update_profile_rejects_null_non_nullable_fields(
@@ -359,15 +257,10 @@ def test_deactivate_profile_uses_repository(
 def test_reactivate_profile_uses_repository_for_inactive_profile(
     service: WorkforceService,
 ) -> None:
-    profile = make_profile(
-        is_active=False,
-        is_available=False,
-        status="inactive",
-    )
+    profile = make_profile(is_active=False, status="inactive")
     reactivated_profile = make_profile(
         organization_id=profile.organization_id,
         is_active=True,
-        is_available=True,
         status="active",
     )
     service._get_profile_or_404 = MagicMock(return_value=profile)
@@ -380,7 +273,6 @@ def test_reactivate_profile_uses_repository_for_inactive_profile(
 
     service.workforce.reactivate_profile.assert_called_once_with(profile)
     assert response.is_active is True
-    assert response.is_available is True
     assert response.status == "active"
 
 

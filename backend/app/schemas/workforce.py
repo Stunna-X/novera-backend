@@ -14,7 +14,6 @@ from typing import Literal
 from pydantic import (
     BaseModel,
     ConfigDict,
-    EmailStr,
     Field,
     field_validator,
 )
@@ -44,8 +43,6 @@ class CreateWorkforceProfileSchema(BaseModel):
         max_length=200,
     )
 
-    membership_id: uuid.UUID | None = None
-
     job_title: str | None = Field(
         default=None,
         max_length=120,
@@ -58,29 +55,7 @@ class CreateWorkforceProfileSchema(BaseModel):
         max_length=50,
     )
 
-    emergency_contact_name: str | None = Field(
-        default=None,
-        max_length=160,
-    )
-
-    emergency_contact_phone: str | None = Field(
-        default=None,
-        max_length=50,
-    )
-
-    skills: list[str] = Field(
-        default_factory=list,
-        max_length=100,
-    )
-
     status: WorkforceStatus = "active"
-
-    is_available: bool = True
-
-    notes: str | None = Field(
-        default=None,
-        max_length=5000,
-    )
 
     @field_validator("full_name", mode="before")
     @classmethod
@@ -100,9 +75,6 @@ class CreateWorkforceProfileSchema(BaseModel):
     @field_validator(
         "job_title",
         "phone",
-        "emergency_contact_name",
-        "emergency_contact_phone",
-        "notes",
         mode="before",
     )
     @classmethod
@@ -114,34 +86,6 @@ class CreateWorkforceProfileSchema(BaseModel):
             return normalized or None
 
         return value
-
-    @field_validator("skills", mode="before")
-    @classmethod
-    def normalize_skills(cls, value: object) -> object:
-        """Normalize skills and remove case-insensitive duplicates."""
-
-        if not isinstance(value, list):
-            return value
-
-        normalized_skills: list[str] = []
-
-        for item in value:
-            if not isinstance(item, str):
-                raise ValueError("Each skill must be a string.")
-
-            skill = item.strip()
-
-            if (
-                skill
-                and skill.lower()
-                not in {
-                    existing.lower()
-                    for existing in normalized_skills
-                }
-            ):
-                normalized_skills.append(skill)
-
-        return normalized_skills
 
 
 class UpdateWorkforceProfileSchema(BaseModel):
@@ -165,29 +109,7 @@ class UpdateWorkforceProfileSchema(BaseModel):
         max_length=50,
     )
 
-    emergency_contact_name: str | None = Field(
-        default=None,
-        max_length=160,
-    )
-
-    emergency_contact_phone: str | None = Field(
-        default=None,
-        max_length=50,
-    )
-
-    skills: list[str] = Field(
-        default_factory=list,
-        max_length=100,
-    )
-
     status: WorkforceStatus | None = None
-
-    is_available: bool | None = None
-
-    notes: str | None = Field(
-        default=None,
-        max_length=5000,
-    )
 
     @field_validator("full_name", mode="before")
     @classmethod
@@ -207,9 +129,6 @@ class UpdateWorkforceProfileSchema(BaseModel):
     @field_validator(
         "job_title",
         "phone",
-        "emergency_contact_name",
-        "emergency_contact_phone",
-        "notes",
         mode="before",
     )
     @classmethod
@@ -222,34 +141,6 @@ class UpdateWorkforceProfileSchema(BaseModel):
 
         return value
 
-    @field_validator("skills", mode="before")
-    @classmethod
-    def normalize_skills(cls, value: object) -> object:
-        """Normalize skills and remove case-insensitive duplicates."""
-
-        if value is None or not isinstance(value, list):
-            return value
-
-        normalized_skills: list[str] = []
-
-        for item in value:
-            if not isinstance(item, str):
-                raise ValueError("Each skill must be a string.")
-
-            skill = item.strip()
-
-            if (
-                skill
-                and skill.lower()
-                not in {
-                    existing.lower()
-                    for existing in normalized_skills
-                }
-            ):
-                normalized_skills.append(skill)
-
-        return normalized_skills
-
 
 class WorkforceProfileResponse(BaseModel):
     """Workforce profile returned by the API."""
@@ -259,32 +150,11 @@ class WorkforceProfileResponse(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
     full_name: str
-
-    membership_id: uuid.UUID | None = None
-
-    # Optional account information.
-    # Standalone employees do not need platform accounts.
-    user_id: uuid.UUID | None = None
-    email: EmailStr | None = None
-
     job_title: str | None = None
     employment_type: EmploymentType | None = None
-
     phone: str | None = None
-
-    emergency_contact_name: str | None = None
-    emergency_contact_phone: str | None = None
-
-    skills: list[str] = Field(
-        default_factory=list,
-    )
-
     status: WorkforceStatus
-    is_available: bool
     is_active: bool
-
-    notes: str | None = None
-
     created_at: datetime
     updated_at: datetime
 

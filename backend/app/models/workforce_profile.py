@@ -1,8 +1,7 @@
 """
 Workforce profile model.
 
-Represents an organization-level employee who may optionally
-be linked to a Novera organization membership.
+Represents a standalone, organization-level employee.
 """
 
 from __future__ import annotations
@@ -15,10 +14,8 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
-    Text,
-    UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -29,7 +26,6 @@ from app.database.base import BaseModel
 
 
 if TYPE_CHECKING:
-    from app.models.membership import Membership
     from app.models.organization import Organization
 
 
@@ -41,19 +37,10 @@ class WorkforceProfile(BaseModel):
     __tablename__ = "workforce_profiles"
 
     __table_args__ = (
-        UniqueConstraint(
-            "membership_id",
-            name="uq_workforce_profiles_membership",
-        ),
         Index(
             "ix_workforce_profiles_organization_status",
             "organization_id",
             "status",
-        ),
-        Index(
-            "ix_workforce_profiles_organization_available",
-            "organization_id",
-            "is_available",
         ),
     )
 
@@ -72,16 +59,6 @@ class WorkforceProfile(BaseModel):
         nullable=False,
     )
 
-    membership_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey(
-            "memberships.id",
-            ondelete="SET NULL",
-        ),
-        nullable=True,
-        index=True,
-    )
-
     job_title: Mapped[str | None] = mapped_column(
         String(120),
         nullable=True,
@@ -97,22 +74,6 @@ class WorkforceProfile(BaseModel):
         nullable=True,
     )
 
-    emergency_contact_name: Mapped[str | None] = mapped_column(
-        String(160),
-        nullable=True,
-    )
-
-    emergency_contact_phone: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-    )
-
-    skills: Mapped[list[str]] = mapped_column(
-        JSONB,
-        nullable=False,
-        default=list,
-    )
-
     status: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
@@ -120,28 +81,11 @@ class WorkforceProfile(BaseModel):
         index=True,
     )
 
-    is_available: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=True,
-        index=True,
-    )
-
-    notes: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
-
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=True,
         index=True,
-    )
-
-    membership: Mapped["Membership | None"] = relationship(
-        "Membership",
-        lazy="joined",
     )
 
     organization: Mapped["Organization"] = relationship(

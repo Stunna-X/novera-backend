@@ -16,10 +16,7 @@ from app.services.work_order_service import WorkOrderService
 pytestmark = pytest.mark.unit
 
 
-def make_service(
-    *,
-    is_available: bool = True,
-) -> tuple[WorkOrderService, SimpleNamespace, SimpleNamespace]:
+def make_service() -> tuple[WorkOrderService, SimpleNamespace, SimpleNamespace]:
     """Build a work-order service with mocked persistence."""
 
     db = MagicMock()
@@ -28,7 +25,6 @@ def make_service(
     work_order = SimpleNamespace(id=uuid.uuid4())
     workforce_profile = SimpleNamespace(
         id=uuid.uuid4(),
-        is_available=is_available,
     )
 
     service._get_work_order_or_404 = MagicMock(
@@ -104,10 +100,8 @@ def test_assign_workforce_saves_responsibility_and_activity() -> None:
     }
 
 
-def test_unavailable_workforce_member_can_be_assigned() -> None:
-    service, work_order, workforce_profile = make_service(
-        is_available=False,
-    )
+def test_workforce_member_without_availability_field_can_be_assigned() -> None:
+    service, work_order, workforce_profile = make_service()
 
     assign_workforce(
         service,
@@ -117,12 +111,6 @@ def test_unavailable_workforce_member_can_be_assigned() -> None:
     )
 
     service.work_orders.add_workforce_assignment.assert_called_once()
-
-    query_filters = service.db.query.return_value.filter.call_args.args
-    assert all(
-        "is_available" not in str(condition)
-        for condition in query_filters
-    )
 
     assert (
         service.work_orders.add_workforce_assignment.call_args.args[0]

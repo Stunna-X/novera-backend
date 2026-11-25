@@ -156,19 +156,13 @@ class DashboardFinanceResponse(BaseModel):
 
 class DashboardTeamMemberMetric(BaseModel):
     """
-    Workforce dashboard workload item.
+    Standalone employee workload item.
     """
 
     workforce_profile_id: uuid.UUID
-    membership_id: uuid.UUID
-    user_id: uuid.UUID
-    first_name: str
-    last_name: str
-    email: str
-    role_name: str
+    full_name: str
     job_title: str | None
     status: str
-    is_available: bool
     open_assignment_count: int = Field(ge=0)
     completed_assignment_count: int = Field(ge=0)
 
@@ -196,7 +190,6 @@ class DashboardTeamResponse(BaseModel):
     generated_at: datetime
 
     active_workforce_count: int = Field(ge=0)
-    available_workforce_count: int = Field(ge=0)
     active_asset_count: int = Field(ge=0)
     available_asset_count: int = Field(ge=0)
 

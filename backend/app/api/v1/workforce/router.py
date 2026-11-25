@@ -52,12 +52,7 @@ def create_workforce_profile(
     ),
     db: Session = Depends(get_db),
 ) -> WorkforceProfileResponse:
-    """
-    Create a workforce profile for an organization employee.
-
-    Requires:
-    - workforce.create
-    """
+    """Create a workforce profile for an organization employee."""
 
     service = WorkforceService(db)
 
@@ -91,9 +86,6 @@ def list_workforce_profiles(
         default=None,
         alias="status",
     ),
-    available_only: bool = Query(
-        default=False,
-    ),
     include_inactive: bool = Query(
         default=False,
     ),
@@ -102,12 +94,7 @@ def list_workforce_profiles(
     ),
     db: Session = Depends(get_db),
 ) -> WorkforceProfileListResponse:
-    """
-    List organization workforce profiles.
-
-    Requires:
-    - workforce.read
-    """
+    """List organization workforce profiles."""
 
     service = WorkforceService(db)
 
@@ -117,7 +104,6 @@ def list_workforce_profiles(
         limit=limit,
         search=search,
         status_filter=workforce_status,
-        available_only=available_only,
         include_inactive=include_inactive,
     )
 
@@ -137,12 +123,7 @@ def get_workforce_profile(
     ),
     db: Session = Depends(get_db),
 ) -> WorkforceProfileResponse:
-    """
-    Return one workforce profile.
-
-    Requires:
-    - workforce.read
-    """
+    """Return one workforce profile."""
 
     service = WorkforceService(db)
 
@@ -166,12 +147,7 @@ def update_workforce_profile(
     ),
     db: Session = Depends(get_db),
 ) -> WorkforceProfileResponse:
-    """
-    Update an active workforce profile.
-
-    Requires:
-    - workforce.update
-    """
+    """Update an active workforce profile."""
 
     service = WorkforceService(db)
 
@@ -194,12 +170,7 @@ def deactivate_workforce_profile(
     ),
     db: Session = Depends(get_db),
 ) -> Response:
-    """
-    Soft-delete a workforce profile.
-
-    Requires:
-    - workforce.delete
-    """
+    """Soft-delete a workforce profile."""
 
     service = WorkforceService(db)
 
@@ -225,12 +196,7 @@ def reactivate_workforce_profile(
     ),
     db: Session = Depends(get_db),
 ) -> WorkforceProfileResponse:
-    """
-    Reactivate a workforce profile.
-
-    Requires:
-    - workforce.update
-    """
+    """Reactivate a workforce profile."""
 
     service = WorkforceService(db)
 

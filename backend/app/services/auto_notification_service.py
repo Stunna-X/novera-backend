@@ -17,11 +17,7 @@ from sqlalchemy.orm import Session
 from app.models.membership import Membership
 from app.models.notification import Notification
 from app.models.role import Role
-from app.models.work_order import (
-    WorkOrder,
-    WorkOrderWorkforceAssignment,
-)
-from app.models.workforce_profile import WorkforceProfile
+from app.models.work_order import WorkOrder
 
 
 MANAGER_ROLE_NAMES = {
@@ -105,48 +101,6 @@ class AutoNotificationService:
             .filter(
                 Membership.organization_id == organization_id,
                 func.lower(Role.name).in_(normalized_roles),
-            )
-            .order_by(
-                Membership.created_at.asc()
-            )
-            .all()
-        )
-
-        return self._dedupe(
-            row[0]
-            for row in rows
-        )
-
-    def _assigned_work_order_user_ids(
-        self,
-        *,
-        organization_id: uuid.UUID,
-        work_order_id: uuid.UUID,
-    ) -> list[uuid.UUID]:
-        """
-        Return users assigned to a work order through workforce
-        profiles.
-        """
-
-        rows = (
-            self.db.query(
-                Membership.user_id
-            )
-            .join(
-                WorkforceProfile,
-                WorkforceProfile.membership_id
-                == Membership.id,
-            )
-            .join(
-                WorkOrderWorkforceAssignment,
-                WorkOrderWorkforceAssignment.workforce_profile_id
-                == WorkforceProfile.id,
-            )
-            .filter(
-                Membership.organization_id == organization_id,
-                WorkforceProfile.organization_id == organization_id,
-                WorkOrderWorkforceAssignment.work_order_id
-                == work_order_id,
             )
             .order_by(
                 Membership.created_at.asc()
@@ -275,92 +229,6 @@ class AutoNotificationService:
                 "work_order_number": work_order.work_order_number,
                 "currency": quote.currency,
                 "total_amount": str(quote.total_amount),
-            },
-        )
-
-    def notify_work_order_scheduled(
-        self,
-        *,
-        organization_id: uuid.UUID,
-        work_order: WorkOrder,
-        actor_user_id: uuid.UUID,
-    ) -> None:
-        """
-        Notify assigned workforce that a work order was scheduled.
-        """
-
-        self._notify(
-            organization_id=organization_id,
-            recipient_user_ids=self._assigned_work_order_user_ids(
-                organization_id=organization_id,
-                work_order_id=work_order.id,
-            ),
-            actor_user_id=actor_user_id,
-            notification_type="work_order_scheduled",
-            title="Work order scheduled",
-            message=(
-                f"Work order {work_order.work_order_number} "
-                "has been scheduled."
-            ),
-            priority="info",
-            entity_type="work_order",
-            entity_id=work_order.id,
-            action_url=f"/work-orders/{work_order.id}",
-            payload={
-                "work_order_number": work_order.work_order_number,
-                "scheduled_start": (
-                    work_order.scheduled_start.isoformat()
-                    if work_order.scheduled_start
-                    else None
-                ),
-                "scheduled_end": (
-                    work_order.scheduled_end.isoformat()
-                    if work_order.scheduled_end
-                    else None
-                ),
-            },
-        )
-
-    def notify_work_order_dispatched(
-        self,
-        *,
-        organization_id: uuid.UUID,
-        work_order: WorkOrder,
-        actor_user_id: uuid.UUID,
-    ) -> None:
-        """
-        Notify assigned workforce that a work order was dispatched.
-        """
-
-        self._notify(
-            organization_id=organization_id,
-            recipient_user_ids=self._assigned_work_order_user_ids(
-                organization_id=organization_id,
-                work_order_id=work_order.id,
-            ),
-            actor_user_id=actor_user_id,
-            notification_type="work_order_dispatched",
-            title="Work order dispatched",
-            message=(
-                f"Work order {work_order.work_order_number} "
-                "has been dispatched."
-            ),
-            priority="warning",
-            entity_type="work_order",
-            entity_id=work_order.id,
-            action_url=f"/work-orders/{work_order.id}",
-            payload={
-                "work_order_number": work_order.work_order_number,
-                "scheduled_start": (
-                    work_order.scheduled_start.isoformat()
-                    if work_order.scheduled_start
-                    else None
-                ),
-                "scheduled_end": (
-                    work_order.scheduled_end.isoformat()
-                    if work_order.scheduled_end
-                    else None
-                ),
             },
         )
 
