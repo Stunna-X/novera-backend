@@ -346,6 +346,36 @@ def assign_workforce_member(
     )
 
 
+@router.put(
+    "/{work_order_id}/workforce/{workforce_profile_id}",
+    response_model=WorkOrderResponse,
+    summary="Update workforce member responsibility",
+)
+def update_workforce_member_responsibility(
+    work_order_id: uuid.UUID,
+    workforce_profile_id: uuid.UUID,
+    payload: AssignWorkforceSchema,
+    context: OrganizationContext = Depends(
+        require_permission("work_orders.assign")
+    ),
+    db: Session = Depends(get_db),
+) -> WorkOrderResponse:
+    """
+    Update the responsibility of an assigned workforce member.
+    """
+
+    service = WorkOrderService(db)
+
+    return service.update_workforce_responsibility(
+        organization_id=context.organization.id,
+        work_order_id=work_order_id,
+        workforce_profile_id=workforce_profile_id,
+        actor_user_id=context.membership.user_id,
+        responsibility=payload.responsibility,
+        custom_responsibility=payload.custom_responsibility,
+    )
+
+
 @router.delete(
     "/{work_order_id}/workforce/{workforce_profile_id}",
     status_code=status.HTTP_204_NO_CONTENT,

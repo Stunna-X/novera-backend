@@ -1274,3 +1274,72 @@ class WorkOrderService:
                 "asset_id": str(asset_id),
             },
         )
+
+    def update_workforce_responsibility(
+        self,
+        organization_id: uuid.UUID,
+        work_order_id: uuid.UUID,
+        workforce_profile_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID,
+        responsibility: str | None = None,
+        custom_responsibility: str | None = None,
+    ) -> WorkOrderResponse:
+        """Update the responsibility of an existing workforce assignment."""
+
+        work_order = self._get_work_order_or_404(
+            organization_id=organization_id,
+            work_order_id=work_order_id,
+        )
+
+        assignment = self.work_orders.get_workforce_assignment(
+            work_order_id=work_order.id,
+            workforce_profile_id=workforce_profile_id,
+        )
+
+        if assignment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workforce assignment not found.",
+            )
+
+        previous_responsibility = assignment.responsibility
+        previous_custom_responsibility = assignment.custom_responsibility
+
+        if (
+            previous_responsibility == responsibility
+            and previous_custom_responsibility == custom_responsibility
+        ):
+            return self._build_response(work_order)
+
+        try:
+            assignment.responsibility = responsibility
+            assignment.custom_responsibility = custom_responsibility
+            self.db.flush()
+
+            self._record_activity(
+                organization_id=organization_id,
+                work_order_id=work_order.id,
+                actor_user_id=actor_user_id,
+                activity_type="workforce_responsibility_updated",
+                summary="Workforce member responsibility updated.",
+                details={
+                    "workforce_profile_id": str(workforce_profile_id),
+                    "previous_responsibility": previous_responsibility,
+                    "previous_custom_responsibility": (
+                        previous_custom_responsibility
+                    ),
+                    "responsibility": responsibility,
+                    "custom_responsibility": custom_responsibility,
+                },
+            )
+        except Exception:
+            self.db.rollback()
+            raise
+
+        refreshed = self._get_work_order_or_404(
+            organization_id=organization_id,
+            work_order_id=work_order.id,
+        )
+
+        return self._build_response(refreshed)

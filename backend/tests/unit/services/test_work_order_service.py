@@ -257,3 +257,98 @@ def test_successful_removal_records_activity() -> None:
     assert activity.details == {
         "workforce_profile_id": str(workforce_profile.id),
     }
+
+def test_update_workforce_responsibility_records_activity() -> None:
+    service, work_order, workforce_profile = make_service()
+    assignment = SimpleNamespace(
+        responsibility="driller",
+        custom_responsibility=None,
+    )
+    service.work_orders.get_workforce_assignment.return_value = assignment
+
+    organization_id = uuid.uuid4()
+    actor_user_id = uuid.uuid4()
+
+    result = service.update_workforce_responsibility(
+        organization_id=organization_id,
+        work_order_id=work_order.id,
+        workforce_profile_id=workforce_profile.id,
+        actor_user_id=actor_user_id,
+        responsibility="supervisor",
+    )
+
+    assert result is sentinel.work_order_response
+    assert assignment.responsibility == "supervisor"
+    assert assignment.custom_responsibility is None
+    service.db.flush.assert_called_once()
+
+    activity = service.activities.create_activity.call_args.args[0]
+    assert activity.activity_type == "workforce_responsibility_updated"
+    assert activity.details == {
+        "workforce_profile_id": str(workforce_profile.id),
+        "previous_responsibility": "driller",
+        "previous_custom_responsibility": None,
+        "responsibility": "supervisor",
+        "custom_responsibility": None,
+    }
+
+
+def test_unchanged_workforce_responsibility_records_no_activity() -> None:
+    service, work_order, workforce_profile = make_service()
+    assignment = SimpleNamespace(
+        responsibility="driller",
+        custom_responsibility=None,
+    )
+    service.work_orders.get_workforce_assignment.return_value = assignment
+
+    service.update_workforce_responsibility(
+        organization_id=uuid.uuid4(),
+        work_order_id=work_order.id,
+        workforce_profile_id=workforce_profile.id,
+        actor_user_id=uuid.uuid4(),
+        responsibility="driller",
+    )
+
+    service.db.flush.assert_not_called()
+    service.activities.create_activity.assert_not_called()
+
+
+def test_update_workforce_responsibility_requires_existing_assignment() -> None:
+    service, work_order, workforce_profile = make_service()
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.update_workforce_responsibility(
+            organization_id=uuid.uuid4(),
+            work_order_id=work_order.id,
+            workforce_profile_id=workforce_profile.id,
+            actor_user_id=uuid.uuid4(),
+            responsibility="supervisor",
+        )
+
+    assert exc_info.value.status_code == 404
+    service.db.flush.assert_not_called()
+    service.activities.create_activity.assert_not_called()
+
+
+def test_update_workforce_responsibility_rolls_back_on_activity_failure() -> None:
+    service, work_order, workforce_profile = make_service()
+    assignment = SimpleNamespace(
+        responsibility="driller",
+        custom_responsibility=None,
+    )
+    service.work_orders.get_workforce_assignment.return_value = assignment
+    service.activities.create_activity.side_effect = RuntimeError(
+        "activity recording failed"
+    )
+
+    with pytest.raises(RuntimeError, match="activity recording failed"):
+        service.update_workforce_responsibility(
+            organization_id=uuid.uuid4(),
+            work_order_id=work_order.id,
+            workforce_profile_id=workforce_profile.id,
+            actor_user_id=uuid.uuid4(),
+            responsibility="supervisor",
+        )
+
+    service.db.flush.assert_called_once()
+    service.db.rollback.assert_called_once()
