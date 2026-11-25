@@ -12,11 +12,10 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import case, func, or_
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.asset import Asset
 from app.models.invoice import Invoice
-from app.models.membership import Membership
 from app.models.quote import Quote
 from app.models.work_order import (
     WorkOrder,
@@ -712,43 +711,16 @@ class DashboardService:
             or 0
         )
 
-        available_workforce_count = int(
-            self.db.query(
-                func.count(WorkforceProfile.id)
-            )
-            .filter(
-                WorkforceProfile.organization_id
-                == organization_id,
-                WorkforceProfile.is_active.is_(True),
-                WorkforceProfile.status == "active",
-                WorkforceProfile.is_available.is_(True),
-            )
-            .scalar()
-            or 0
-        )
-
         profiles = (
             self.db.query(WorkforceProfile)
-            .options(
-                joinedload(
-                    WorkforceProfile.membership
-                ).joinedload(
-                    Membership.user
-                ),
-                joinedload(
-                    WorkforceProfile.membership
-                ).joinedload(
-                    Membership.role
-                ),
-            )
             .filter(
                 WorkforceProfile.organization_id
                 == organization_id,
                 WorkforceProfile.is_active.is_(True),
             )
             .order_by(
-                WorkforceProfile.is_available.desc(),
-                WorkforceProfile.created_at.asc(),
+                WorkforceProfile.full_name.asc(),
+                WorkforceProfile.id.asc(),
             )
             .limit(limit)
             .all()
@@ -759,10 +731,6 @@ class DashboardService:
         ] = []
 
         for profile in profiles:
-            membership = profile.membership
-            user = membership.user
-            role = membership.role
-
             open_assignment_count = int(
                 self.db.query(
                     func.count(
@@ -828,15 +796,9 @@ class DashboardService:
             workforce_metrics.append(
                 DashboardTeamMemberMetric(
                     workforce_profile_id=profile.id,
-                    membership_id=profile.membership_id,
-                    user_id=membership.user_id,
-                    first_name=user.first_name,
-                    last_name=user.last_name,
-                    email=user.email,
-                    role_name=role.name,
+                    full_name=profile.full_name,
                     job_title=profile.job_title,
                     status=profile.status,
-                    is_available=profile.is_available,
                     open_assignment_count=(
                         open_assignment_count
                     ),
@@ -929,9 +891,6 @@ class DashboardService:
             organization_id=organization_id,
             generated_at=now,
             active_workforce_count=active_workforce_count,
-            available_workforce_count=(
-                available_workforce_count
-            ),
             active_asset_count=active_asset_count,
             available_asset_count=available_asset_count,
             workforce=workforce_metrics,

@@ -41,6 +41,7 @@ from app.schemas.work_order import (
     UpdateWorkOrderSchema,
     WorkOrderListResponse,
     WorkOrderResponse,
+    WorkforceAssignmentResponse,
 )
 
 
@@ -126,6 +127,14 @@ class WorkOrderService:
                 for assignment
                 in work_order.workforce_assignments
             ],
+            workforce_assignments=[
+                WorkforceAssignmentResponse(
+                    workforce_profile_id=assignment.workforce_profile_id,
+                    responsibility=assignment.responsibility,
+                    custom_responsibility=assignment.custom_responsibility,
+                )
+                for assignment in work_order.workforce_assignments
+            ],
             asset_ids=[
                 assignment.asset_id
                 for assignment
@@ -134,6 +143,22 @@ class WorkOrderService:
             is_active=work_order.is_active,
             created_at=work_order.created_at,
             updated_at=work_order.updated_at,
+        )
+
+    @staticmethod
+    def _is_duplicate_workforce_assignment_error(
+        exc: IntegrityError,
+    ) -> bool:
+        """
+        Identify the workforce assignment uniqueness violation.
+        """
+
+        original_error = getattr(exc, "orig", None)
+        diagnostic = getattr(original_error, "diag", None)
+
+        return (
+            getattr(diagnostic, "constraint_name", None)
+            == "uq_work_order_workforce_assignment"
         )
 
     def _record_activity(
@@ -948,6 +973,8 @@ class WorkOrderService:
         workforce_profile_id: uuid.UUID,
         *,
         actor_user_id: uuid.UUID,
+        responsibility: str | None = None,
+        custom_responsibility: str | None = None,
     ) -> WorkOrderResponse:
         """
         Assign workforce and record the assignment.
@@ -994,6 +1021,8 @@ class WorkOrderService:
                 workforce_profile_id=(
                     workforce_profile.id
                 ),
+                responsibility=responsibility,
+                custom_responsibility=custom_responsibility,
             )
 
             try:
@@ -1001,6 +1030,21 @@ class WorkOrderService:
                     assignment
                 )
 
+            except IntegrityError as exc:
+                self.db.rollback()
+
+                if self._is_duplicate_workforce_assignment_error(exc):
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=(
+                            "The workforce member is already "
+                            "assigned to this work order."
+                        ),
+                    ) from exc
+
+                raise
+
+            try:
                 self._record_activity(
                     organization_id=organization_id,
                     work_order_id=work_order.id,
@@ -1014,19 +1058,13 @@ class WorkOrderService:
                         "workforce_profile_id": str(
                             workforce_profile.id
                         ),
+                        "responsibility": responsibility,
+                        "custom_responsibility": custom_responsibility,
                     },
                 )
-
-            except IntegrityError as exc:
+            except Exception:
                 self.db.rollback()
-
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=(
-                        "The workforce member is already "
-                        "assigned to this work order."
-                    ),
-                ) from exc
+                raise
 
         refreshed = self._get_work_order_or_404(
             organization_id=organization_id,
@@ -1071,25 +1109,29 @@ class WorkOrderService:
                 ),
             )
 
-        self.work_orders.remove_workforce_assignment(
-            assignment
-        )
+        try:
+            self.work_orders.remove_workforce_assignment(
+                assignment
+            )
 
-        self._record_activity(
-            organization_id=organization_id,
-            work_order_id=work_order.id,
-            actor_user_id=actor_user_id,
-            activity_type="workforce_removed",
-            summary=(
-                "Workforce member removed "
-                "from work order."
-            ),
-            details={
-                "workforce_profile_id": str(
-                    workforce_profile_id
+            self._record_activity(
+                organization_id=organization_id,
+                work_order_id=work_order.id,
+                actor_user_id=actor_user_id,
+                activity_type="workforce_removed",
+                summary=(
+                    "Workforce member removed "
+                    "from work order."
                 ),
-            },
-        )
+                details={
+                    "workforce_profile_id": str(
+                        workforce_profile_id
+                    ),
+                },
+            )
+        except Exception:
+            self.db.rollback()
+            raise
 
     def assign_asset(
         self,
@@ -1232,3 +1274,72 @@ class WorkOrderService:
                 "asset_id": str(asset_id),
             },
         )
+
+    def update_workforce_responsibility(
+        self,
+        organization_id: uuid.UUID,
+        work_order_id: uuid.UUID,
+        workforce_profile_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID,
+        responsibility: str | None = None,
+        custom_responsibility: str | None = None,
+    ) -> WorkOrderResponse:
+        """Update the responsibility of an existing workforce assignment."""
+
+        work_order = self._get_work_order_or_404(
+            organization_id=organization_id,
+            work_order_id=work_order_id,
+        )
+
+        assignment = self.work_orders.get_workforce_assignment(
+            work_order_id=work_order.id,
+            workforce_profile_id=workforce_profile_id,
+        )
+
+        if assignment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workforce assignment not found.",
+            )
+
+        previous_responsibility = assignment.responsibility
+        previous_custom_responsibility = assignment.custom_responsibility
+
+        if (
+            previous_responsibility == responsibility
+            and previous_custom_responsibility == custom_responsibility
+        ):
+            return self._build_response(work_order)
+
+        try:
+            assignment.responsibility = responsibility
+            assignment.custom_responsibility = custom_responsibility
+            self.db.flush()
+
+            self._record_activity(
+                organization_id=organization_id,
+                work_order_id=work_order.id,
+                actor_user_id=actor_user_id,
+                activity_type="workforce_responsibility_updated",
+                summary="Workforce member responsibility updated.",
+                details={
+                    "workforce_profile_id": str(workforce_profile_id),
+                    "previous_responsibility": previous_responsibility,
+                    "previous_custom_responsibility": (
+                        previous_custom_responsibility
+                    ),
+                    "responsibility": responsibility,
+                    "custom_responsibility": custom_responsibility,
+                },
+            )
+        except Exception:
+            self.db.rollback()
+            raise
+
+        refreshed = self._get_work_order_or_404(
+            organization_id=organization_id,
+            work_order_id=work_order.id,
+        )
+
+        return self._build_response(refreshed)

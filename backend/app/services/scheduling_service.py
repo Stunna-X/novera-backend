@@ -21,7 +21,6 @@ from sqlalchemy.orm import (
 )
 
 from app.models.asset import Asset
-from app.models.membership import Membership
 from app.models.work_order import (
     WorkOrder,
     WorkOrderAssetAssignment,
@@ -266,19 +265,7 @@ class SchedulingService:
         if isinstance(resource, Asset):
             return resource.name
 
-        membership = resource.membership
-
-        if membership and membership.user:
-            user = membership.user
-
-            return (
-                f"{user.first_name} {user.last_name}"
-            ).strip()
-
-        if resource.employee_code:
-            return resource.employee_code
-
-        return str(resource.id)
+        return resource.full_name
 
     def _record_activity(
         self,
@@ -325,13 +312,6 @@ class SchedulingService:
 
         profiles = (
             self.db.query(WorkforceProfile)
-            .options(
-                joinedload(
-                    WorkforceProfile.membership
-                ).joinedload(
-                    Membership.user
-                )
-            )
             .filter(
                 WorkforceProfile.organization_id == organization_id,
                 WorkforceProfile.id.in_(workforce_profile_ids),
@@ -363,17 +343,14 @@ class SchedulingService:
         unavailable = [
             profile
             for profile in profiles
-            if (
-                profile.status != "active"
-                or not profile.is_available
-            )
+            if profile.status != "active"
         ]
 
         if unavailable:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "Only active and available workforce "
+                    "Only active workforce "
                     "profiles can be scheduled."
                 ),
             )
@@ -968,13 +945,6 @@ class SchedulingService:
                 },
             )
 
-            # Auto notification: work order scheduled.
-            self.auto_notifications.notify_work_order_scheduled(
-                organization_id=organization_id,
-                work_order=work_order,
-                actor_user_id=actor_user_id,
-            )
-
             self.auto_audit.work_order_scheduled(
 
                 organization_id=organization_id,
@@ -1134,13 +1104,6 @@ class SchedulingService:
             },
         )
 
-        # Auto notification: work order dispatched.
-        self.auto_notifications.notify_work_order_dispatched(
-            organization_id=organization_id,
-            work_order=work_order,
-            actor_user_id=actor_user_id,
-        )
-
         self.auto_audit.work_order_dispatched(
 
             organization_id=organization_id,
@@ -1165,4 +1128,3 @@ class SchedulingService:
             ),
             conflicts=conflicts_response.conflicts,
         )
-

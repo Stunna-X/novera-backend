@@ -378,12 +378,11 @@ class WorkOrderRepository(
         assignment: WorkOrderWorkforceAssignment,
     ) -> WorkOrderWorkforceAssignment:
         """
-        Persist a workforce assignment.
+        Add a workforce assignment to the current transaction.
         """
 
         self.db.add(assignment)
-        self.db.commit()
-        self.db.refresh(assignment)
+        self.db.flush()
 
         return assignment
 
@@ -396,7 +395,7 @@ class WorkOrderRepository(
         """
 
         self.db.delete(assignment)
-        self.db.commit()
+        self.db.flush()
 
     def get_asset_assignment(
         self,

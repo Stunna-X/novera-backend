@@ -435,3 +435,111 @@ def test_work_order_expense_cannot_cross_organization_boundary(
 
         assert original.description == original_description
         assert original.is_active is True
+
+def test_workforce_responsibility_update_persists_and_is_tenant_scoped(
+    integration_session_factory: sessionmaker[Session],
+    inventory_integration_data: TenantIntegrationData,
+) -> None:
+    """Persist responsibility changes and prevent cross-tenant updates."""
+
+    from app.models.work_order import WorkOrderWorkforceAssignment
+    from app.models.work_order_activity import WorkOrderActivity
+    from app.schemas.workforce import CreateWorkforceProfileSchema
+    from app.services.work_order_service import WorkOrderService
+    from app.services.workforce_service import WorkforceService
+
+    data = inventory_integration_data
+    token = uuid.uuid4().hex[:10]
+
+    with integration_session_factory() as db:
+        profile = WorkforceService(db).create_profile(
+            organization_id=data.organization_id,
+            payload=CreateWorkforceProfileSchema(
+                full_name=f"Integration Employee {token}",
+            ),
+        )
+
+        WorkOrderService(db).assign_workforce(
+            organization_id=data.organization_id,
+            work_order_id=data.work_order_id,
+            workforce_profile_id=profile.id,
+            actor_user_id=data.actor_user_id,
+            custom_responsibility="Drilling operator",
+        )
+        db.commit()
+
+        WorkOrderService(db).update_workforce_responsibility(
+            organization_id=data.organization_id,
+            work_order_id=data.work_order_id,
+            workforce_profile_id=profile.id,
+            actor_user_id=data.actor_user_id,
+            responsibility="supervisor",
+        )
+        db.commit()
+
+        profile_id = profile.id
+
+    # Verify the update and audit event in a fresh session.
+    with integration_session_factory() as db:
+        assignment = (
+            db.query(WorkOrderWorkforceAssignment)
+            .filter(
+                WorkOrderWorkforceAssignment.work_order_id
+                == data.work_order_id,
+                WorkOrderWorkforceAssignment.workforce_profile_id
+                == profile_id,
+            )
+            .one()
+        )
+
+        assert assignment.responsibility == "supervisor"
+        assert assignment.custom_responsibility is None
+
+        activity = (
+            db.query(WorkOrderActivity)
+            .filter(
+                WorkOrderActivity.work_order_id == data.work_order_id,
+                WorkOrderActivity.activity_type
+                == "workforce_responsibility_updated",
+            )
+            .one()
+        )
+
+        assert activity.organization_id == data.organization_id
+        assert activity.actor_user_id == data.actor_user_id
+        assert activity.details == {
+            "workforce_profile_id": str(profile_id),
+            "previous_responsibility": None,
+            "previous_custom_responsibility": "Drilling operator",
+            "responsibility": "supervisor",
+            "custom_responsibility": None,
+        }
+
+    # The other organization must not be able to update this work order.
+    with integration_session_factory() as db:
+        with pytest.raises(HTTPException) as error:
+            WorkOrderService(db).update_workforce_responsibility(
+                organization_id=data.other_organization_id,
+                work_order_id=data.work_order_id,
+                workforce_profile_id=profile_id,
+                actor_user_id=data.actor_user_id,
+                responsibility="operator",
+            )
+
+        _assert_not_found(error)
+
+    # Confirm the rejected request did not alter the stored assignment.
+    with integration_session_factory() as db:
+        assignment = (
+            db.query(WorkOrderWorkforceAssignment)
+            .filter(
+                WorkOrderWorkforceAssignment.work_order_id
+                == data.work_order_id,
+                WorkOrderWorkforceAssignment.workforce_profile_id
+                == profile_id,
+            )
+            .one()
+        )
+
+        assert assignment.responsibility == "supervisor"
+        assert assignment.custom_responsibility is None

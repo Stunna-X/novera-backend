@@ -24,6 +24,7 @@ from app.api.deps import (
 )
 from app.database.session import get_db
 from app.schemas.work_order import (
+    AssignWorkforceSchema,
     ChangeWorkOrderStatusSchema,
     CreateWorkOrderSchema,
     UpdateWorkOrderSchema,
@@ -323,6 +324,7 @@ def reactivate_work_order(
 def assign_workforce_member(
     work_order_id: uuid.UUID,
     workforce_profile_id: uuid.UUID,
+    payload: AssignWorkforceSchema | None = None,
     context: OrganizationContext = Depends(
         require_permission("work_orders.assign")
     ),
@@ -339,6 +341,38 @@ def assign_workforce_member(
         work_order_id=work_order_id,
         workforce_profile_id=workforce_profile_id,
         actor_user_id=context.membership.user_id,
+        responsibility=payload.responsibility if payload else None,
+        custom_responsibility=payload.custom_responsibility if payload else None,
+    )
+
+
+@router.put(
+    "/{work_order_id}/workforce/{workforce_profile_id}",
+    response_model=WorkOrderResponse,
+    summary="Update workforce member responsibility",
+)
+def update_workforce_member_responsibility(
+    work_order_id: uuid.UUID,
+    workforce_profile_id: uuid.UUID,
+    payload: AssignWorkforceSchema,
+    context: OrganizationContext = Depends(
+        require_permission("work_orders.assign")
+    ),
+    db: Session = Depends(get_db),
+) -> WorkOrderResponse:
+    """
+    Update the responsibility of an assigned workforce member.
+    """
+
+    service = WorkOrderService(db)
+
+    return service.update_workforce_responsibility(
+        organization_id=context.organization.id,
+        work_order_id=work_order_id,
+        workforce_profile_id=workforce_profile_id,
+        actor_user_id=context.membership.user_id,
+        responsibility=payload.responsibility,
+        custom_responsibility=payload.custom_responsibility,
     )
 
 

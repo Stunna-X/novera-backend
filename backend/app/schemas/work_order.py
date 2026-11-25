@@ -38,6 +38,48 @@ WorkOrderStatus = Literal[
 ]
 
 
+class AssignWorkforceSchema(BaseModel):
+    """
+    Optional job-specific workforce assignment details.
+    """
+
+    responsibility: str | None = Field(
+        default=None,
+        max_length=50,
+    )
+
+    custom_responsibility: str | None = Field(
+        default=None,
+        max_length=120,
+    )
+
+    @field_validator(
+        "responsibility",
+        "custom_responsibility",
+    )
+    @classmethod
+    def normalize_responsibility(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        return value.strip() or None
+
+    @model_validator(mode="after")
+    def validate_responsibility_choice(
+        self,
+    ) -> "AssignWorkforceSchema":
+        if self.responsibility and self.custom_responsibility:
+            raise ValueError(
+                "Provide either a standard responsibility "
+                "or a custom responsibility, not both."
+            )
+
+        return self
+
+
 class CreateWorkOrderSchema(BaseModel):
     """
     Payload used to create a work order.
@@ -411,6 +453,16 @@ class ChangeWorkOrderStatusSchema(BaseModel):
         return value
 
 
+class WorkforceAssignmentResponse(BaseModel):
+    """
+    Workforce assignment details for a work order.
+    """
+
+    workforce_profile_id: uuid.UUID
+    responsibility: str | None
+    custom_responsibility: str | None
+
+
 class WorkOrderResponse(BaseModel):
     """
     Work order returned by the API.
@@ -443,6 +495,9 @@ class WorkOrderResponse(BaseModel):
     cancellation_reason: str | None
 
     workforce_profile_ids: list[uuid.UUID] = Field(
+        default_factory=list,
+    )
+    workforce_assignments: list[WorkforceAssignmentResponse] = Field(
         default_factory=list,
     )
 
